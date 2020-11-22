@@ -44,7 +44,7 @@ bool GeometriesPlugin::getGeometrySrv(gazebo_geometries_plugin::geometry::Reques
 
     res.message = "Model found!";
 
-    ignition::math::Box box = model->BoundingBox();
+    ignition::math::Box box = model->CollisionBoundingBox();
 
     geometry_msgs::Vector3 min, max, centre;
 
