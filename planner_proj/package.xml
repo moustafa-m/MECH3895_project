@@ -16,6 +16,7 @@
   <exec_depend>kinova_description</exec_depend>
   <exec_depend>kinova_gazebo</exec_depend>
   <exec_depend>gazebo_grasp_plugin</exec_depend>
+  <exec_depend>gazebo_geometries_plugin</exec_depend>
   <exec_depend>planner</exec_depend>
 
 
