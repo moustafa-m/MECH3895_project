@@ -5,7 +5,7 @@ Manipulator::Manipulator(ros::NodeHandle* nh)
 {
     ros::param::param<std::string>("/robot_name", name_, "j2s7s300");
     
-    ROS_INFO("%sRobot name set to %s", BLUE, name_);
+    ROS_INFO("%sRobot name set to %s", BLUE, name_.c_str());
     
     this->setJointsInfo();
     this->initSolvers();
