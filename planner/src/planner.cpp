@@ -2,7 +2,7 @@
 
 Planner::Planner()
 {
-    init();
+    this->init();
 }
 
 Planner::~Planner()
@@ -40,10 +40,10 @@ void Planner::savePath(const og::PathGeometric& path)
     
     std::stringstream ss;
     ss << std::put_time(std::localtime(&time), "%b-%a-%R");
-    std::string s = ros::package::getPath("planner") + "/src/paths/" + ss.str() + ".txt";
+    std::string s = ros::package::getPath("planner") + "/paths/" + ss.str() + ".txt";
     
     std::cout << GREEN << "Saving solution path to src/paths/" << ss.str() << ".txt\n" <<
-            "Run Python script in paths/ to visualise" << std::endl;
+            "Run Python or Bash scripts in paths/ to visualise" << std::endl;
     
     std::ofstream file;
     file.open(s, std::fstream::out);
@@ -114,7 +114,7 @@ og::PathGeometric Planner::plan()
         std::cout << "-----" << NC << std::endl;
         #endif
         
-        // this->savePath(*pdef_->getSolutionPath()->as<og::PathGeometric>());
+        this->savePath(*pdef_->getSolutionPath()->as<og::PathGeometric>());
     }
     else
     {
