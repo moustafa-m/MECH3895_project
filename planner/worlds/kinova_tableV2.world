@@ -1107,5 +1107,6 @@
       <allow_auto_disable>1</allow_auto_disable>
       <pose frame=''>-0.881935 0.002442 0 0 -0 0</pose>
     </model>
+    <plugin name="gazebo_geometries_plugin" filename="libgazebo_geometries_plugin.so" />
   </world>
 </sdf>

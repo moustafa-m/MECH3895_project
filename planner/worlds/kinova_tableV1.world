@@ -878,5 +878,6 @@
         <pose frame=''>0 0 10 0 -0 0</pose>
       </light>
     </state>
+    <plugin name="gazebo_geometries_plugin" filename="libgazebo_geometries_plugin.so" />
   </world>
 </sdf>
