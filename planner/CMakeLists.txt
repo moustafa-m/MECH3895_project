@@ -9,6 +9,17 @@ add_compile_options(-std=c++14)
 find_package(ompl REQUIRED)
 message(STATUS "Found OMPL ver: ${OMPL_VERSION}")
 
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(LIBFCL_PC REQUIRED fcl)
+set(LIBFCL_INCLUDE_DIRS ${LIBFCL_PC_INCLUDE_DIRS})
+# find *absolute* paths to LIBFCL_LIBRARIES
+set(LIBFCL_LIBRARIES)
+foreach(_lib ${LIBFCL_PC_LIBRARIES})
+  find_library(_lib_${_lib} ${_lib} HINTS ${LIBFCL_PC_LIBRARY_DIRS})
+  list(APPEND LIBFCL_LIBRARIES ${_lib_${_lib}})
+endforeach()
+
+
 find_package(Eigen3 3.3 REQUIRED NO_MODULE)
 
 find_package(catkin REQUIRED COMPONENTS
@@ -21,7 +32,10 @@ find_package(catkin REQUIRED COMPONENTS
   gazebo_msgs
   sensor_msgs
   trac_ik_lib
+  gazebo_geometries_plugin
 )
+
+find_package(gazebo REQUIRED)
 
 ## System dependencies are found with CMake's conventions
 find_package(Boost REQUIRED COMPONENTS system)
@@ -115,15 +129,22 @@ find_package(Boost REQUIRED COMPONENTS system)
 catkin_package(
   INCLUDE_DIRS include
 #  LIBRARIES planner
- CATKIN_DEPENDS roscpp trajectory_msgs control_msgs actionlib_msgs trac_ik_lib
+ CATKIN_DEPENDS roscpp trajectory_msgs control_msgs actionlib_msgs trac_ik_lib gazebo_geometries_plugin
 #  DEPENDS system_lib
 )
 
+link_directories(
+  ${GAZEBO_LIBRARY_DIRS}
+  ${fcl_LIBRARY_DIRS}
+  ${OMPL_LIBRARY_DIRS}
+)
 
 include_directories(
   include
   ${catkin_INCLUDE_DIRS}
   ${OMPL_INCLUDE_DIRS}
+  ${GAZEBO_INCLUDE_DIRS}
+  ${fcl_INCLUDE_DIRS}
 )
 
 ## Declare a C++ library
@@ -160,5 +181,7 @@ add_dependencies(controller_test ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EX
 target_link_libraries(controller_test
   ${catkin_LIBRARIES}
   ${OMPL_LIBRARIES}
+  ${GAZEBO_LIBRARIES}
+  fcl
   Eigen3::Eigen
 )
