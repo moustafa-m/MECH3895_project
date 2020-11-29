@@ -8,6 +8,7 @@ Panels:
         - /Status1
         - /BaseAxes1
         - /EndEffectorAxes1
+        - /Marker1
       Splitter Ratio: 0.4882352948188782
     Tree Height: 549
   - Class: rviz/Selection
@@ -161,6 +162,15 @@ Visualization Manager:
       Radius: 0.029999999329447746
       Reference Frame: j2s6s300_end_effector
       Value: true
+    - Class: rviz/Marker
+      Enabled: true
+      Marker Topic: visualization_marker
+      Name: Marker
+      Namespaces:
+        goal: true
+        path: true
+      Queue Size: 100
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
@@ -196,18 +206,18 @@ Visualization Manager:
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: -0.045015908777713776
-        Y: -0.50980144739151
-        Z: 0.10243850946426392
+        X: -0.4772794246673584
+        Y: -0.6451013088226318
+        Z: 0.2781067192554474
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.8803979158401489
+      Pitch: 0.47539830207824707
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 5.443567276000977
+      Yaw: 4.2935333251953125
     Saved: ~
 Window Geometry:
   Displays:
@@ -226,4 +236,4 @@ Window Geometry:
     collapsed: true
   Width: 1200
   X: 211
-  Y: 47
+  Y: 10
