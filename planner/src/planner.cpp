@@ -75,6 +75,10 @@ void Planner::savePath(const og::PathGeometric& path)
     path.printAsMatrix(file);
     file.flush();
     file.close();
+
+    std::string dir = ros::package::getPath("planner") + "/paths";
+    std::string cmd = "cd " + dir + "&& ./plot.sh -f " + ss.str() + ".txt";
+    system(cmd.c_str());
 }
 
 void Planner::init()
