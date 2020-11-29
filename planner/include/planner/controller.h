@@ -1,5 +1,6 @@
 #pragma once
 
+#include <visualization_msgs/Marker.h>
 #include <gazebo_geometries_plugin/geometry.h>
 #include "util.h"
 #include "planner.h"
@@ -25,7 +26,6 @@ private:
     void statesCallback(gazebo_msgs::ModelStatesConstPtr msg);
     bool homeSrvCallback(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);
     bool initSrvCallback(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);
-    // void timerCallback(const ros::TimerEvent& e);
     
     Planner planner_;
     Manipulator manipulator_;
@@ -36,6 +36,7 @@ private:
     ros::NodeHandle nh_;
     ros::ServiceServer home_srv_;
     ros::ServiceServer init_srv_;
+    ros::Publisher marker_pub_;
     ros::Subscriber states_sub_;
     ros::ServiceClient collisions_client_;
 

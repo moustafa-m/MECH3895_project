@@ -16,6 +16,11 @@ void Controller::run()
 {
     if (states_.pose.empty() || solved_) return;
 
+    // clear all rviz markers
+    visualization_msgs::Marker marker;
+	marker.action = visualization_msgs::Marker::DELETEALL;
+    marker_pub_.publish(marker);
+
     this->getCollisionBoxes();
     Eigen::Vector3d goal;
     bool found_target = false;
@@ -34,10 +39,45 @@ void Controller::run()
     std::vector<Eigen::Vector3d> start_pose = manipulator_.solveFK();
     planner_.setStart(start_pose[0]); planner_.setGoal(goal);
     
+    if (!found_target) { ROS_FATAL("Unable to find collision geometry for [%s]", target_.c_str()); exit(-1); }
+
+    // ----> Marking goal
+    marker.id = 0;
+    marker.scale.x = marker.scale.y = 0.02;
+    marker.color.b = marker.color.a = 1.0;
+    marker.ns = "goal";
+    marker.header.frame_id = manipulator_.getName() + "_link_base";
+    marker.header.stamp = ros::Time::now();
+    geometry_msgs::Point p;
+    p.x = goal[0]; p.y = p.y = goal[1]; p.z = goal[2]; marker.points.push_back(p);
+    marker.action = visualization_msgs::Marker::ADD;
+    marker.type = visualization_msgs::Marker::POINTS;
+    marker_pub_.publish(marker);
+    // <----
+    
     og::PathGeometric solution = planner_.plan();
     
     if (solution.check())
     {
+        for (size_t i = 0; i < solution.getStateCount(); i++)
+        {
+            marker.id = i;
+            marker.scale.x = marker.scale.y = 0.02;
+            marker.color.g = marker.color.a = 1.0;
+            marker.ns = "path";
+            marker.header.frame_id = manipulator_.getName() + "_link_base";
+            marker.header.stamp = ros::Time::now();
+            geometry_msgs::Point p;
+            p.x = solution.getStates()[i]->as<ob::SE3StateSpace::StateType>()->getX();
+            p.y = solution.getStates()[i]->as<ob::SE3StateSpace::StateType>()->getY();
+            p.z = solution.getStates()[i]->as<ob::SE3StateSpace::StateType>()->getZ();
+            marker.points.push_back(p);
+
+            marker.action = visualization_msgs::Marker::ADD;
+            marker.type = visualization_msgs::Marker::POINTS;
+
+            marker_pub_.publish(marker);
+        }
         ROS_INFO("%sObtaining joint angles...", CYAN);
         // getJointGoal(solution);
         sendAction(getJointGoal(solution), getGripperGoal(solution));
@@ -192,6 +232,7 @@ void Controller::init()
     home_srv_ = nh_.advertiseService("go_to_home", &Controller::homeSrvCallback, this);
     init_srv_ = nh_.advertiseService("go_to_init", &Controller::initSrvCallback, this);
     collisions_client_ = nh_.serviceClient<gazebo_geometries_plugin::geometry>("/gazebo/get_geometry");
+    marker_pub_ = nh_.advertise<visualization_msgs::Marker>("/visualization_marker", 10);
 
     while (states_sub_.getNumPublishers() == 0 && ros::ok())
     {
