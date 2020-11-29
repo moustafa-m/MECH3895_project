@@ -1,4 +1,17 @@
-#include "planner/util.h"
+// This program was made to test out the ROS Gazebo controller and how trajectories are sent to it.
+// It is not used in the motion planning nodes.
+
+#include <ros/ros.h>
+#include <trajectory_msgs/JointTrajectory.h>
+#include <control_msgs/FollowJointTrajectoryAction.h>
+#include <actionlib/client/action_client.h>
+#include <actionlib/client/simple_action_client.h>
+#include <actionlib_msgs/GoalID.h>
+#include <gazebo_msgs/ModelStates.h>
+
+#include "planner/defines.h"
+
+typedef actionlib::SimpleActionClient<control_msgs::FollowJointTrajectoryAction> ArmActionSimple;
 
 std::vector<double> home_pose = {0.0, 2.9, 1.3, 4.2, 1.4, 0.0};
 std::vector<double> init_pose = {0.0, M_PI, 0.4, 2.4, 1.4, 0};

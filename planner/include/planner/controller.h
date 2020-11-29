@@ -1,10 +1,20 @@
 #pragma once
 
+#include <trajectory_msgs/JointTrajectory.h>
+#include <control_msgs/FollowJointTrajectoryAction.h>
+#include <gazebo_msgs/ModelStates.h>
 #include <visualization_msgs/Marker.h>
+#include <actionlib_msgs/GoalID.h>
+#include <actionlib/client/action_client.h>
+#include <actionlib/client/simple_action_client.h>
 #include <gazebo_geometries_plugin/geometry.h>
+
 #include "util.h"
 #include "planner.h"
 #include "manipulator.h"
+
+typedef actionlib::SimpleActionClient<control_msgs::FollowJointTrajectoryAction> ArmActionSimple;
+typedef boost::shared_ptr<ArmActionSimple> ArmControlPtr;
 
 class Controller
 {
