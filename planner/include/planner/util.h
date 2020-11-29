@@ -7,6 +7,7 @@
 #include <actionlib/client/simple_action_client.h>
 #include <actionlib_msgs/GoalID.h>
 #include <std_srvs/Empty.h>
+#include <geometry_msgs/Vector3.h>
 #include <cmath>
 #include <iostream>
 #include <chrono>
@@ -22,5 +23,12 @@ namespace chrono = std::chrono;
 
 namespace util
 {
-
+    typedef struct CollisionGeometry
+    {
+        std::string name;
+        geometry_msgs::Vector3 min;
+        geometry_msgs::Vector3 max;
+        geometry_msgs::Vector3 centre;
+        geometry_msgs::Vector3 dimension;
+    } CollisionGeometry;
 }

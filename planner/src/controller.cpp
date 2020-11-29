@@ -183,6 +183,7 @@ void Controller::init()
     states_sub_ = nh_.subscribe("/gazebo/model_states", 10, &Controller::statesCallback, this);
     home_srv_ = nh_.advertiseService("go_to_home", &Controller::homeSrvCallback, this);
     init_srv_ = nh_.advertiseService("go_to_init", &Controller::initSrvCallback, this);
+    collisions_client_ = nh_.serviceClient<gazebo_geometries_plugin::geometry>("/gazebo/get_geometry");
 
     while (states_sub_.getNumPublishers() == 0 && ros::ok())
     {
@@ -211,6 +212,56 @@ void Controller::sendAction(trajectory_msgs::JointTrajectory joint_traj, traject
     gripper_goal.trajectory.header.stamp = ros::Time::now();
     gripperAction_->sendGoal(gripper_goal);
     gripperAction_->waitForResult();
+}
+
+void Controller::getCollisionBoxes()
+{
+    for (size_t i = 0; i < states_.name.size(); i++)
+    {
+        if (states_.name[i].find(manipulator_.getName()) != std::string::npos) continue;
+
+        gazebo_geometries_plugin::geometry srv;
+        srv.request.model_name = states_.name[i];
+        if (collisions_client_.call(srv))
+        {
+            for (size_t j = 0; j < srv.response.name.size(); j++)
+            {
+                util::CollisionGeometry temp;
+                temp.name = srv.response.name[j];
+                temp.centre = srv.response.centre[j];
+                temp.min = srv.response.min_bounds[j];
+                temp.max = srv.response.max_bounds[j];
+                temp.dimension = srv.response.dimensions[j];
+                // std::cout << srv.response.dimensions[j].x << " -- " << srv.response.name[j] << " -- " << states_.name[i] << std::endl;
+                collision_geometries_.push_back(temp);
+            }
+        }
+    }
+
+    int num_joints = manipulator_.getNumJoints();
+    //  collision geometries for Kinova links and fingers
+    for (int i = 0 ; i < num_joints+3; i++)
+    {
+        std::string link;
+        if (i < manipulator_.getNumJoints()) { link = "_link_" + std::to_string(i+1); }
+        else { link = "_link_finger_" + std::to_string((i+1)-num_joints); }
+
+        gazebo_geometries_plugin::geometry srv;
+        srv.request.model_name = manipulator_.getName() + link;
+        if (collisions_client_.call(srv))
+        {
+            for (size_t j = 0; j < srv.response.name.size(); j++)
+            {
+                util::CollisionGeometry temp;
+                temp.name = srv.response.name[j];
+                temp.centre = srv.response.centre[j];
+                temp.min = srv.response.min_bounds[j];
+                temp.max = srv.response.max_bounds[j];
+                temp.dimension = srv.response.dimensions[j];
+                collision_geometries_.push_back(temp);
+            }
+        }
+    }
 }
 
 bool Controller::homeSrvCallback(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res)
