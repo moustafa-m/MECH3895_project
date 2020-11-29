@@ -4,7 +4,7 @@ Controller::Controller(ros::NodeHandle* nh)
     : nh_(*nh), manipulator_(nh)
 {
     this->init();
-    goToInit();
+    this->goToInit();
 }
 
 Controller::~Controller()
@@ -35,9 +35,6 @@ void Controller::run()
             break;
         }
     }
-    // goal[0] = -0.4; goal[1] = 0; goal[2] = 0.8;
-    std::vector<Eigen::Vector3d> start_pose = manipulator_.solveFK();
-    planner_.setStart(start_pose[0]); planner_.setGoal(goal);
     
     if (!found_target) { ROS_FATAL("Unable to find collision geometry for [%s]", target_.c_str()); exit(-1); }
 
@@ -55,10 +52,18 @@ void Controller::run()
     marker_pub_.publish(marker);
     // <----
     
+    std::pair<Eigen::Vector3d, Eigen::Quaterniond> start_pose;
+    start_pose = manipulator_.solveFK();
+    
+    planner_.setCollisionGeometries(collision_geometries_);
+    planner_.setManipulatorName(manipulator_.getName());
+    planner_.setStart(start_pose.first, start_pose.second); planner_.setGoal(goal, target_);
+    
     og::PathGeometric solution = planner_.plan();
     
     if (solution.check())
     {
+        planner_.savePath(solution);
         for (size_t i = 0; i < solution.getStateCount(); i++)
         {
             marker.id = i;
@@ -79,11 +84,12 @@ void Controller::run()
             marker_pub_.publish(marker);
         }
         ROS_INFO("%sObtaining joint angles...", CYAN);
-        // getJointGoal(solution);
-        sendAction(getJointGoal(solution), getGripperGoal(solution));
+        
+        this->sendAction(getJointGoal(solution), getGripperGoal(solution));
         solved_ = true;
 
-        goToHome();
+        //TODO use OMPL to return to home
+        this->goToInit();
         ros::shutdown();
     }
 }
@@ -91,6 +97,7 @@ void Controller::run()
 trajectory_msgs::JointTrajectory Controller::getJointGoal(og::PathGeometric& path)
 {
     std::vector<ob::State*> path_states = path.getStates();
+    path_states.erase(path_states.begin());
 
     int num_joints = manipulator_.getNumJoints();
     trajectory_msgs::JointTrajectory msg;
@@ -99,22 +106,27 @@ trajectory_msgs::JointTrajectory Controller::getJointGoal(og::PathGeometric& pat
 
     msg.joint_names = manipulator_.getJointNames();
 
-    msg.points[0].positions = manipulator_.getInitPose();
-    msg.points[0].time_from_start = ros::Duration(1);
-
-    for (size_t i = 1; i < path_states.size(); i++)
+    for (size_t i = 0; i < path_states.size(); i++)
     {
         msg.points[i].positions.resize(num_joints);
         msg.points[i].effort.resize(num_joints);
         msg.points[i].velocities.resize(num_joints);
-        msg.points[i].accelerations.resize(num_joints);
 
-        Eigen::Vector3d position;
+        Eigen::Vector3d position, prev_pos;
         position << path_states[i]->as<ob::SE3StateSpace::StateType>()->getX(),
                 path_states[i]->as<ob::SE3StateSpace::StateType>()->getY(),
                 path_states[i]->as<ob::SE3StateSpace::StateType>()->getZ();
 
-        std::vector<double> angles = manipulator_.solveIK(position);
+        Eigen::Quaterniond orientation;
+        orientation.coeffs() << path_states[i]->as<ob::SO3StateSpace::StateType>()->x,
+                    path_states[i]->as<ob::SO3StateSpace::StateType>()->y,
+                    path_states[i]->as<ob::SO3StateSpace::StateType>()->z,
+                    path_states[i]->as<ob::SO3StateSpace::StateType>()->w;
+
+        std::vector<double> angles;
+        if (i == 0) { angles = manipulator_.solveIK(position, orientation, manipulator_.getInitPose()); }
+        else { angles = manipulator_.solveIK(position, orientation, msg.points[i-1].positions); }
+
         if (angles.empty())
         {
             ROS_ERROR("No angles obtained from IK!");
@@ -124,11 +136,13 @@ trajectory_msgs::JointTrajectory Controller::getJointGoal(og::PathGeometric& pat
         msg.points[i].positions = angles;
         for (int j = 0; j < num_joints; j++)
         {
-            msg.points[i].effort[j] = 3;
+            msg.points[i].effort[j] = 1000;
             msg.points[i].velocities[j] = 0;
             msg.points[i].accelerations[j] = 0;
         }
-        msg.points[i].time_from_start = ros::Duration(10+i);
+        msg.points[i].time_from_start = ros::Duration(5+(i*2));
+
+        if (!ros::ok()) { exit(0); }
     }
 
     return msg;
@@ -136,33 +150,27 @@ trajectory_msgs::JointTrajectory Controller::getJointGoal(og::PathGeometric& pat
 
 trajectory_msgs::JointTrajectory Controller::getGripperGoal(og::PathGeometric& path)
 {
+    //TODO: This function is unnecessary, should be replaced, changed, or removed
     std::vector<ob::State*> path_states = path.getStates();
 
     int num_joints = manipulator_.getNumJoints();
     trajectory_msgs::JointTrajectory msg;
     msg.joint_names.resize(3);
-    msg.points.resize(path_states.size());
+    msg.points.resize(1);
 
     msg.joint_names = manipulator_.getFingerNames();
 
-    for (size_t i = 0; i < path_states.size(); i++)
-    {
-        msg.points[i].positions.resize(3);
-        msg.points[i].effort.resize(3);
-        msg.points[i].velocities.resize(3);
-        msg.points[i].accelerations.resize(3);
-        
-        if (i == path_states.size() - 1)
-        {
-            msg.points[i].positions = {0.95, 0.95, 0.95};
-            msg.points[i].effort = {2000, 2000, 2000};
-        }
-
-        msg.points[i].velocities = {0, 0, 0};
-        msg.points[i].accelerations = {0, 0, 0};
-        
-        msg.points[i].time_from_start = ros::Duration(2+i);
-    }
+    msg.points[0].positions.resize(3);
+    msg.points[0].effort.resize(3);
+    msg.points[0].velocities.resize(3);
+    msg.points[0].accelerations.resize(3);
+    
+    msg.points[0].positions = {0.95, 0.95, 0.95};
+    msg.points[0].effort = {5, 5, 5};
+    msg.points[0].velocities = {0, 0, 0};
+    msg.points[0].accelerations = {0, 0, 0};
+    
+    msg.points[0].time_from_start = ros::Duration(2);
 
     return msg;
 }
@@ -175,23 +183,25 @@ void Controller::goToHome()
     joints_msg.header.stamp = gripper_msg.header.stamp = ros::Time::now();
 
     // joints
-    joints_msg.joint_names.resize(manipulator_.getNumJoints()); joints_msg.points.resize(1); joints_msg.points[0].positions.resize(6);
-    joints_msg.points[0].effort.resize(manipulator_.getNumJoints());
+    joints_msg.points.resize(1);
+    joints_msg.joint_names.resize(manipulator_.getNumJoints());
+    joints_msg.points[0].positions.resize(manipulator_.getNumJoints());
+
     joints_msg.joint_names = manipulator_.getJointNames();
     joints_msg.points[0].positions = manipulator_.getHomePose();
-    for (int i = 0; i < manipulator_.getNumJoints(); i++) { joints_msg.points[0].effort[i] = 1; }
-    joints_msg.points[0].time_from_start = ros::Duration(10);
+    joints_msg.points[0].time_from_start = ros::Duration(5);
 
     // gripper
     gripper_msg.joint_names.resize(3); gripper_msg.points.resize(1); gripper_msg.points[0].positions.resize(3);
     gripper_msg.points[0].effort.resize(3);
     gripper_msg.joint_names = manipulator_.getFingerNames();
+    
     gripper_msg.points[0].positions = {0.95, 0.95, 0.95};
     gripper_msg.points[0].effort = {5, 5, 5};
     gripper_msg.points[0].time_from_start = ros::Duration(3);
 
-    sendAction(joints_msg, gripper_msg);
-    ROS_INFO("%sDone!", GREEN);
+    this->sendAction(joints_msg, gripper_msg);
+    ROS_INFO("%sDone, Kinova is at home position!", GREEN);
 }
 
 void Controller::goToInit()
@@ -202,23 +212,28 @@ void Controller::goToInit()
     joints_msg.header.stamp = gripper_msg.header.stamp = ros::Time::now();
 
     // joints
-    joints_msg.joint_names.resize(manipulator_.getNumJoints()); joints_msg.points.resize(1); joints_msg.points[0].positions.resize(6);
+    joints_msg.points.resize(1); 
+    joints_msg.joint_names.resize(manipulator_.getNumJoints());
+    joints_msg.points[0].positions.resize(manipulator_.getNumJoints());
     joints_msg.points[0].effort.resize(manipulator_.getNumJoints());
+
     joints_msg.joint_names = manipulator_.getJointNames();    
     joints_msg.points[0].positions = manipulator_.getInitPose();
-    for (int i = 0; i < manipulator_.getNumJoints(); i++) { joints_msg.points[0].effort[i] = 1; }
-    joints_msg.points[0].time_from_start = ros::Duration(10);
+    for (int i = 0; i < manipulator_.getNumJoints(); i++) { joints_msg.points[0].effort[i] = 1000; }
+    joints_msg.points[0].time_from_start = ros::Duration(5);
     
     // gripper
     gripper_msg.joint_names.resize(3); gripper_msg.points.resize(1); gripper_msg.points[0].positions.resize(3);
     gripper_msg.joint_names = manipulator_.getFingerNames();
-    gripper_msg.points[0].positions = {0, 0, 0};
+    
+    if (!solved_) { gripper_msg.points[0].positions = {0.4, 0.4, 0.4}; }
+    else { gripper_msg.points[0].positions = {0.95, 0.95, 0.95}; }
     gripper_msg.points[0].time_from_start = ros::Duration(3);
 
     joints_msg.header.stamp = gripper_msg.header.stamp = ros::Time::now();
 
-    sendAction(joints_msg, gripper_msg);
-    ROS_INFO("%sDone!", GREEN);
+    this->sendAction(joints_msg, gripper_msg);
+    ROS_INFO("%sDone, Kinova is at init position!", GREEN);
 }
 
 void Controller::setTargetName(std::string target)
@@ -254,6 +269,7 @@ void Controller::sendAction(trajectory_msgs::JointTrajectory joint_traj, traject
     joint_goal.trajectory = joint_traj;
     gripper_goal.trajectory = gripper_traj;
     
+    ROS_INFO("%sSending tracjectory actions...", CYAN);
     joint_goal.trajectory.header.stamp = ros::Time::now();
     armAction_->sendGoal(joint_goal);
     armAction_->waitForResult();
@@ -261,6 +277,7 @@ void Controller::sendAction(trajectory_msgs::JointTrajectory joint_traj, traject
     gripper_goal.trajectory.header.stamp = ros::Time::now();
     gripperAction_->sendGoal(gripper_goal);
     gripperAction_->waitForResult();
+    ROS_INFO("%sTrajectories complete!", GREEN);
 }
 
 void Controller::getCollisionBoxes()

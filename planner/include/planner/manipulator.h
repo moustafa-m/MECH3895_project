@@ -24,8 +24,8 @@ public:
     Manipulator(ros::NodeHandle* nh);
     ~Manipulator();
 
-    std::vector<double> solveIK(Eigen::Vector3d position);
-    std::vector<Eigen::Vector3d> solveFK();
+    std::vector<double> solveIK(Eigen::Vector3d position, Eigen::Quaterniond orientation, std::vector<double> prev_joints);
+    std::pair<Eigen::Vector3d, Eigen::Quaterniond> solveFK();
     std::string getName();
     int getNumJoints();
     std::vector<std::string> getJointNames();

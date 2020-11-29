@@ -22,13 +22,20 @@ Manipulator::~Manipulator()
     delete fk_solver_;
 }
 
-std::vector<double> Manipulator::solveIK(Eigen::Vector3d position)
+std::vector<double> Manipulator::solveIK(Eigen::Vector3d position, Eigen::Quaterniond orientation, std::vector<double> prev_joints)
 {
-    KDL::JntArray current_states(num_joints_), out(num_joints_);
-    std::cout << GREEN << "Current angles: {";
-    for (int i = 0; i < num_joints_; i++) { current_states(i) = joint_states_.position[i]; std::cout << joint_states_.position[i] << " ";}
-    std::cout << "}" << NC << std::endl;
+    #ifdef DEBUG
+    std::cout << MAGENTA << "-----\n[DEBUG]\nCurrent angles: {";
+    for (int i = 0; i < num_joints_; i++) { std::cout << joint_states_.position[i] << " "; }
+    std::cout << "}" << std::endl;
 
+    std::cout << MAGENTA << "Prev angles: {";
+    for (int i = 0; i < num_joints_; i++) { std::cout << prev_joints[i] << " "; }
+    std::cout << "}" << NC << std::endl;
+    #endif
+
+    KDL::JntArray current_states(num_joints_), out(num_joints_);
+    for (int i = 0; i < num_joints_; i++) { current_states(i) = joint_states_.position[i]; }
 
     KDL::Frame end_effector_pose;
     fk_solver_->JntToCart(current_states, end_effector_pose);
@@ -37,26 +44,34 @@ std::vector<double> Manipulator::solveIK(Eigen::Vector3d position)
     end_effector_pose.M.GetRPY(r, p, y);
 
     #ifdef DEBUG
-    std::cout << MAGENTA << "-----\nDEBUG\n-----\nEnd effector current Pose: \nPos: {" << end_effector_pose.p[0]
+    std::cout << MAGENTA << "-----\n[DEBUG]\n-----\nEnd effector current Pose: \nPos: {" << end_effector_pose.p[0]
             << ", " << end_effector_pose.p[1] << ", " << end_effector_pose.p[2] <<
             "}\n" << "RPY: {" << r << ", " << p << ", " << y << "}\n-----" << NC << std::endl;
     #endif
 
-    // end_effector_pose.M = KDL::Rotation::RPY(-M_PI_2, 0, M_PI_2);
+    //TODO: Add orientation from OMPL path
+    // end_effector_pose.M = KDL::Rotation::RPY(-M_PI_2, 0.0, M_PI_2);
+    end_effector_pose.M = KDL::Rotation::Quaternion(-0.5, -0.5, 0.5, 0.5);
     end_effector_pose.M.GetRPY(r, p, y);
     end_effector_pose.p[0] = position[0]; end_effector_pose.p[1] = position[1]; end_effector_pose.p[2] = position[2];
     
     #ifdef DEBUG
-    std::cout << MAGENTA << "DEBUG\n-----\nEnd Effector desired Pose: \n" << "Pos: {" << end_effector_pose.p[0]
+    std::cout << MAGENTA << "[DEBUG]\n-----\nEnd Effector desired Pose: \n" << "Pos: {" << end_effector_pose.p[0]
             << ", " << end_effector_pose.p[1] << ", " << end_effector_pose.p[2] << "}\nRPY: {" << r << ", "
             << p << ", " << y << "}\n-----" << NC << std::endl;
     #endif
 
+    for (int i = 0; i < num_joints_; i++)
+    {
+        current_states(i) = prev_joints[i];
+    }
     int success = ik_solver_->CartToJnt(current_states, end_effector_pose, out);
 
     if (success < 0)
     {
-        ROS_ERROR_STREAM("Failed to obtain IK solution!");
+        ROS_ERROR_STREAM("Failed to obtain IK solution!\nFailed for state:\n"<< "Pos: {" << end_effector_pose.p[0]
+            << ", " << end_effector_pose.p[1] << ", " << end_effector_pose.p[2] << "}\nRPY: {" << r << ", "
+            << p << ", " << y << "}\n-----" << NC << std::endl);
         exit(-1);
     }
 
@@ -73,50 +88,25 @@ std::vector<double> Manipulator::solveIK(Eigen::Vector3d position)
     return output;
 }
 
-std::vector<Eigen::Vector3d> Manipulator::solveFK()
+std::pair<Eigen::Vector3d, Eigen::Quaterniond> Manipulator::solveFK()
 {
-    // std::vector<Eigen::Matrix4d> matrices(num_joints_);
-
-    // this->setDHTheta();
-    // for (int i = 0; i < num_joints_; i++)
-    // {
-    //     matrices[i] << cos(dh_para_.theta[i]), -sin(dh_para_.theta[i])*cos(dh_para_.alpha[i]), sin(dh_para_.theta[i])*sin(dh_para_.alpha[i]), dh_para_.a_i[i]*cos(dh_para_.theta[i]),
-    //             sin(dh_para_.theta[i]), cos(dh_para_.theta[i])*cos(dh_para_.alpha[i]), -cos(dh_para_.theta[i])*sin(dh_para_.alpha[i]), dh_para_.a_i[i]*sin(dh_para_.theta[i]),
-    //             0, sin(dh_para_.alpha[i]), cos(dh_para_.alpha[i]), dh_para_.d_i[i],
-    //             0, 0, 0, 1;
-    // }
-
-    // Eigen::Matrix4d T0_N = matrices[0];
-    // for (int i = 1; i < matrices.size(); i++) { T0_N *= matrices[i]; }
-    // #ifdef DEBUG
-    // std::cout << "End effector Matrix: \n" << T0_N << NC << std::endl;
-    // #endif
-
     KDL::JntArray current_states(num_joints_);
     for (int i = 0; i < num_joints_; i++) { current_states(i) = joint_states_.position[i]; }
 
     KDL::Frame end_effector_pose;
     fk_solver_->JntToCart(current_states, end_effector_pose);
-    Eigen::Vector3d position, kinova_orientation;
+    Eigen::Vector3d position; Eigen::Quaterniond quat;
     position[0] = end_effector_pose.p[0]; 
     position[1] = end_effector_pose.p[1];
     position[2] = end_effector_pose.p[2];
 
-    end_effector_pose.M.GetRPY(kinova_orientation[0], kinova_orientation[1], kinova_orientation[2]);
-    // kinova_orientation[0] = -asin(T0_N(2,0));
-    // kinova_orientation[1] = atan2(T0_N(2,1)/cos(kinova_orientation[0]), T0_N(2,2)/cos(kinova_orientation[0]));
-    // kinova_orientation[2] = atan2(T0_N(1,0)/cos(kinova_orientation[0]), T0_N(0,0)/cos(kinova_orientation[0]));
-
-    // position = transform_*position;
-    // kinova_orientation = transform_*kinova_orientation;
+    end_effector_pose.M.GetQuaternion(quat.x(), quat.y(), quat.z(), quat.w());
 
     #ifdef DEBUG
-    std::cout << MAGENTA << "DEBUG\n------\nend effector position:\n" << position << "\nend effector orientation:\n"
-            << kinova_orientation << "\n------" << NC << std::endl;
+    std::cout << MAGENTA << "-----\n[DEBUG]\n-----\nend effector position:\n" << position << "\nend effector orientation:\n"
+            << quat.coeffs() << "\n------" << NC << std::endl;
     #endif
-
-    std::vector<Eigen::Vector3d> pose = {position, kinova_orientation};
-    return pose;
+    return std::make_pair(position, quat);
 }
 
 std::string Manipulator::getName()
@@ -212,12 +202,12 @@ void Manipulator::setDefaultPoses()
         // check if curved or spherical wrist
         if (name_.compare("j2n6s300") == 0)
         {
-            init_pose_ = {0.0, M_PI, 0.6, 2.4, 1.4, 0}; // for j2n6s300 (curved wrist)
+            init_pose_ = {0.0, 3*M_PI_4, 0.6, 2.4, 1.4, 0}; // for j2n6s300 (curved wrist)
         }
         else
         {
             // init_pose_ = {M_PI, 3*M_PI/2, M_PI_2, 3*M_PI/2, 3*M_PI/2, 3*M_PI/2}; // for j2s6s300 (spherical wrist)
-            init_pose_ = {0.0, M_PI, 1.3, 0.0, 2.9, 0.0}; // for j2s6s300 (spherical wrist)
+            init_pose_ = {0.0, 3*M_PI_4, 0.8, 0.0, M_PI, 0.0}; // for j2s6s300 (spherical wrist)
         }
     }
     else
