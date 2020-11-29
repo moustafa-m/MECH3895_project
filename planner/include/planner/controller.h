@@ -16,6 +16,7 @@ public:
     trajectory_msgs::JointTrajectory getGripperGoal(og::PathGeometric& path);
     void goToHome();
     void goToInit();
+    void setTargetName(std::string target);
     
 private:
     void init();
@@ -40,6 +41,7 @@ private:
 
     gazebo_msgs::ModelStates states_;
     std::vector<util::CollisionGeometry> collision_geometries_;
+    std::string target_;
     
     bool solved_ = false;
 };

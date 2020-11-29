@@ -16,14 +16,17 @@ void Controller::run()
 {
     if (states_.pose.empty() || solved_) return;
 
+    this->getCollisionBoxes();
     Eigen::Vector3d goal;
-    for (int i = 0; i < states_.name.size(); i++)
+    bool found_target = false;
+    for (int i = 0; i < collision_geometries_.size(); i++)
     {
-        if (states_.name[i].compare("coke_can") == 0)
+        if (collision_geometries_[i].name.find(target_) != std::string::npos)
         {
-            goal[0] = states_.pose[i].position.x;
-            goal[1] = states_.pose[i].position.y;
-            goal[2] = states_.pose[i].position.z + 0.1;
+            goal << collision_geometries_[i].centre.x,
+                    collision_geometries_[i].centre.y,
+                    collision_geometries_[i].centre.z;
+            found_target = true;
             break;
         }
     }
@@ -178,6 +181,11 @@ void Controller::goToInit()
     ROS_INFO("%sDone!", GREEN);
 }
 
+void Controller::setTargetName(std::string target)
+{
+    target_ = target;
+}
+
 void Controller::init()
 {
     states_sub_ = nh_.subscribe("/gazebo/model_states", 10, &Controller::statesCallback, this);
@@ -283,11 +291,26 @@ void Controller::statesCallback(gazebo_msgs::ModelStatesConstPtr msg)
 
 int main(int argc, char** argv)
 {
+    std::string target;
     ros::init(argc, argv, "controller_test_node");
-    ros::NodeHandle nh;
+    ros::NodeHandle nh("~");
+    nh.getParam("target", target);
     std::cout << CYAN << "Starting test run!" << NC << std::endl;
 
+    if (target.empty()) { target = "coke_can"; }
+
+    std::cout << CYAN << "Target object set to: " << target << "\nInput any key to continue or n to exit: ";
+    std::string in;
+    std::cin >> in;
+    if (in.compare("n") == 0)
+    {
+        std::cout << GREEN << "Exiting!" << NC << std::endl;
+        ros::shutdown();
+        return 0;
+    }
+
     Controller controller(&nh);
+    controller.setTargetName(target);
     while (ros::ok())
     {
         ros::spinOnce();
@@ -295,4 +318,5 @@ int main(int argc, char** argv)
     }
 
     std::cout << GREEN << "Run complete, exiting!" << NC << std::endl;
+    return 0;
 }
