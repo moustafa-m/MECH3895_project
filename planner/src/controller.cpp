@@ -111,6 +111,7 @@ trajectory_msgs::JointTrajectory Controller::getJointGoal(og::PathGeometric& pat
         msg.points[i].positions.resize(num_joints);
         msg.points[i].effort.resize(num_joints);
         msg.points[i].velocities.resize(num_joints);
+        msg.points[i].accelerations.resize(num_joints);
 
         Eigen::Vector3d position, prev_pos;
         position << path_states[i]->as<ob::SE3StateSpace::StateType>()->getX(),
