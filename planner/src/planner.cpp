@@ -191,10 +191,12 @@ bool Planner::isStateValid(const ob::State* state)
     //TODO: for now use the last link connected to the end effector to check for collisions
     // IK should be added in state validity to obtain positions of end effector and links
     // to use for collision checking
+    double x_offset = 0.05, y_offset = 0.02;
     util::CollisionGeometry effector = collision_boxes_[idx];
+    effector.dimension.x += x_offset; effector.dimension.y += y_offset;
     std::shared_ptr<fcl::CollisionGeometry> effectorbox;
     // create box with enlarged collision box, size is not taken to be exact due to empty space in between fingers
-    effectorbox = std::shared_ptr<fcl::CollisionGeometry>(new fcl::Box(effector.dimension.x+0.05, effector.dimension.y+0.02, effector.dimension.z));
+    effectorbox = std::shared_ptr<fcl::CollisionGeometry>(new fcl::Box(effector.dimension.x, effector.dimension.y, effector.dimension.z));
     fcl::CollisionObject effectorobj(effectorbox);
     fcl::Vec3f effector_xyz(x-(sign(x)*(0.12+(effector.dimension.x/2))), y, z); // change center of collision box to be at centre of last link
     fcl::Quaternion3f effector_quat(state3D->as<ob::SO3StateSpace::StateType>(1)->w,
@@ -206,19 +208,21 @@ bool Planner::isStateValid(const ob::State* state)
     // Thumb
     util::CollisionGeometry kinova_thumb = collision_boxes_[collision_boxes_.size()-3];
     std::shared_ptr<fcl::CollisionGeometry> thumbbox;
-    thumbbox = std::shared_ptr<fcl::CollisionGeometry>(new fcl::Box(kinova_thumb.dimension.x, kinova_thumb.dimension.y, kinova_thumb.dimension.z));
+    thumbbox = std::shared_ptr<fcl::CollisionGeometry>(new fcl::Box(kinova_thumb.dimension.x+0.04, kinova_thumb.dimension.y, kinova_thumb.dimension.z));
     fcl::CollisionObject thumbobj(thumbbox);
-    fcl::Vec3f thumb_xyz(x-(sign(x)*0.05), y+0.06, z); // change center of thumb
-    fcl::Quaternion3f thumb_quat(0.9659258, 0, 0, -0.258819);
+    fcl::Vec3f thumb_xyz(x-(sign(x)*0.05), y+0.08, z); // change center of thumb
+    // fcl::Quaternion3f thumb_quat(0.1542514, 0, 0, 0.9880316);
+    fcl::Quaternion3f thumb_quat(1, 0, 0, 0);
     thumbobj.setTransform(thumb_quat, thumb_xyz);
 
     // fingers NOTE: the collision geometry for the two fingers is taken to be one box for simplification hence z dimension is multiplied by 2 and has 2cm added
     util::CollisionGeometry kinova_finger = collision_boxes_[collision_boxes_.size()-2];
     std::shared_ptr<fcl::CollisionGeometry> fingerbox;
-    fingerbox = std::shared_ptr<fcl::CollisionGeometry>(new fcl::Box(kinova_finger.dimension.x, kinova_finger.dimension.y, kinova_finger.dimension.z*2+0.02));
+    fingerbox = std::shared_ptr<fcl::CollisionGeometry>(new fcl::Box(kinova_finger.dimension.x+0.04, kinova_finger.dimension.y, kinova_finger.dimension.z*2+0.02));
     fcl::CollisionObject fingerobj(fingerbox);
-    fcl::Vec3f finger_xyz(x-(sign(x)*0.05), y-0.06, z); // change center of fingers
-    fcl::Quaternion3f finger_quat(0.9659258, 0, 0, 0.258819);
+    fcl::Vec3f finger_xyz(x-(sign(x)*0.05), y-0.08, z); // change center of fingers
+    // fcl::Quaternion3f finger_quat(0.1542514, 0, 0, -0.9880316);
+    fcl::Quaternion3f finger_quat(1, 0, 0, 0);
     fingerobj.setTransform(finger_quat, finger_xyz);
 
     for (size_t i = 0; i < collision_boxes_.size(); i++)
@@ -230,8 +234,12 @@ bool Planner::isStateValid(const ob::State* state)
         box = std::shared_ptr<fcl::CollisionGeometry>(new fcl::Box(collision_boxes_[i].dimension.x, collision_boxes_[i].dimension.y, collision_boxes_[i].dimension.z));
 
         fcl::CollisionObject obj(box);
-        fcl::Vec3f xyz(collision_boxes_[i].centre.x, collision_boxes_[i].centre.y, collision_boxes_[i].centre.z);
-        fcl::Quaternion3f quat(1, 0, 0, 0);
+        fcl::Vec3f xyz(collision_boxes_[i].pose.position.x, collision_boxes_[i].pose.position.y, collision_boxes_[i].pose.position.z);
+        // fcl::Quaternion3f quat(1, 0, 0, 0);
+        fcl::Quaternion3f quat(collision_boxes_[i].pose.orientation.w,
+                        collision_boxes_[i].pose.orientation.x,
+                        collision_boxes_[i].pose.orientation.y,
+                        collision_boxes_[i].pose.orientation.z);
         obj.setTransform(quat, xyz);
 
         fcl::CollisionRequest request(1, false, 1, false);
@@ -243,22 +251,20 @@ bool Planner::isStateValid(const ob::State* state)
         if (result.isCollision() || thumb_result.isCollision() || finger_result.isCollision())
         {
             #ifdef DEBUG
-            fcl::Vec3f translation; std::string name; geometry_msgs::Vector3 dim; fcl::Contact contact;
+            fcl::Vec3f translation; std::string name; geometry_msgs::Vector3 dim; fcl::Contact contact; fcl::Quaternion3f rot;
 
-            std::cout << MAGENTA << "-----\n[DEBUG]\nCollision with: " << collision_boxes_[i].name << " {"
-                    << collision_boxes_[i].centre.x << ", " << collision_boxes_[i].centre.y << ", "
-                    << collision_boxes_[i].centre.z << "}" << std::endl;
+            std::cout << MAGENTA << "-----\n[DEBUG]\nCollision with: " << collision_boxes_[i].name << obj.getTranslation() << "\n"
+                    << "Rotation: " << obj.getQuatRotation() << std::endl;
             std::cout << "Object dimensions: {" << collision_boxes_[i].dimension.x << " " << collision_boxes_[i].dimension.y << " " 
                     << collision_boxes_[i].dimension.z << "}" << std::endl;
             std::cout << "Detected collision in state: {" << x << ", " << y << ", " << z << "}" << std::endl;
             
-            if (result.isCollision()) { translation = effectorobj.getTranslation(); name = "effector"; dim = effector.dimension; }
-            else if (thumb_result.isCollision()) { translation = thumbobj.getTranslation(); name = "thumb"; dim = kinova_thumb.dimension; }
-            else { translation = fingerobj.getTranslation(); name = "finger"; dim = kinova_finger.dimension; }
+            if (result.isCollision()) { translation = effectorobj.getTranslation(); name = "effector"; dim = effector.dimension; rot = effector_quat; }
+            else if (thumb_result.isCollision()) { translation = thumbobj.getTranslation(); name = "thumb"; dim = kinova_thumb.dimension; rot = thumb_quat; }
+            else { translation = fingerobj.getTranslation(); name = "finger"; dim = kinova_finger.dimension; rot = finger_quat; }
 
-            std::cout << "link name: " << name << "\nlink position: " << translation << "\nlink dimensions: {"
+            std::cout << "link name: " << name << "\nlink position: " << translation << "\nRotation: " << rot << "\nlink dimensions: {"
                     << dim.x << ", " << dim.y << ", " << dim.z << "}\n-----" << std::endl;
-            
             #endif
             return false;
         }

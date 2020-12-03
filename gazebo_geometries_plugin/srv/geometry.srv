@@ -4,5 +4,5 @@ string message
 string[] name
 geometry_msgs/Vector3[] min_bounds
 geometry_msgs/Vector3[] max_bounds
-geometry_msgs/Vector3[] centre
 geometry_msgs/Vector3[] dimensions
+geometry_msgs/Pose[] pose

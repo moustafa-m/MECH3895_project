@@ -25,6 +25,43 @@ void GeometriesPlugin::Load(physics::WorldPtr _world, sdf::ElementPtr _sdf)
     ROS_INFO("%sGeometriesPlugin: Plugin loaded!", GREEN);
 }
 
+void GeometriesPlugin::getBBox(gazebo_geometries_plugin::geometry::Response &res, gazebo::physics::CollisionPtr geom)
+{
+    ignition::math::Box collision_box;
+    geometry_msgs::Vector3 min, max, dimensions;
+    geometry_msgs::Pose pose;
+
+    gazebo::physics::ShapePtr shape(geom->GetShape());
+    collision_box = geom->CollisionBoundingBox();
+    min.x = collision_box.Min().X(); min.y = collision_box.Min().Y(); min.z = collision_box.Min().Z();
+    max.x = collision_box.Max().X(); max.y = collision_box.Max().Y(); max.z = collision_box.Max().Z();
+    
+    // if the geometry has a box shape, an Object Oriented Bounding Box (OOBB) can be obtained, otherwise
+    // an Axis Aligned Bounding Box (AABB) is obtained. The AABB is aligned with the world axes, whereas the
+    // OOBB is aligned with object axes
+    if (shape->HasType(gazebo::physics::Shape::BOX_SHAPE))
+    {
+        gazebo::physics::BoxShape *box = static_cast<gazebo::physics::BoxShape*>(shape.get());
+
+        dimensions.x = box->Size().X(); dimensions.y = box->Size().Y(); dimensions.z = box->Size().Z();
+        pose.orientation.x = geom->WorldPose().Rot().X(); pose.orientation.y = geom->WorldPose().Rot().Y(); pose.orientation.z = geom->WorldPose().Rot().Z();
+        pose.orientation.w = geom->WorldPose().Rot().W();
+    }
+    else
+    {
+        dimensions.x = collision_box.Size().X(); dimensions.y = collision_box.Size().Y(); dimensions.z = collision_box.Size().Z();
+        pose.orientation.x = 0; pose.orientation.y = 0; pose.orientation.z = 0;
+        pose.orientation.w = 1;
+    }
+
+    pose.position.x = collision_box.Center().X(); pose.position.y = collision_box.Center().Y(); pose.position.z = collision_box.Center().Z();
+    
+    res.min_bounds.push_back(min);
+    res.max_bounds.push_back(max);
+    res.dimensions.push_back(dimensions);
+    res.pose.push_back(pose);
+}
+
 bool GeometriesPlugin::getGeometrySrv(gazebo_geometries_plugin::geometry::Request &req, gazebo_geometries_plugin::geometry::Response &res)
 {
     physics::ModelPtr model;
@@ -58,8 +95,6 @@ bool GeometriesPlugin::getGeometrySrv(gazebo_geometries_plugin::geometry::Reques
         return false;
     }
 
-    ignition::math::Box collision_box;
-    geometry_msgs::Vector3 min, max, centre, dimensions;
     ROS_INFO("%sGeometriesPlugin: Found %d child links for [%s]", GREEN, model->GetChildCount(), req.model_name.c_str());
     
     // loop through parent model child links
@@ -85,38 +120,17 @@ bool GeometriesPlugin::getGeometrySrv(gazebo_geometries_plugin::geometry::Reques
                 if (!find_link)
                 {
                     gazebo::physics::CollisionPtr geom = boost::dynamic_pointer_cast<gazebo::physics::Collision>(body->GetChild(j));
-                    collision_box = geom->CollisionBoundingBox();
-                    
-                    min.x = collision_box.Min().X(); min.y = collision_box.Min().Y(); min.z = collision_box.Min().Z();
-                    max.x = collision_box.Max().X(); max.y = collision_box.Max().Y(); max.z = collision_box.Max().Z();
-                    centre.x = collision_box.Center().X(); centre.y = collision_box.Center().Y(); centre.z = collision_box.Center().Z();
-                    dimensions.x = collision_box.XLength(); dimensions.y = collision_box.YLength(); dimensions.z = collision_box.ZLength();
-
                     res.name.push_back(req.model_name + "_" + body->GetChild(j)->GetName());
-                    res.min_bounds.push_back(min);
-                    res.max_bounds.push_back(max);
-                    res.centre.push_back(centre);
-                    res.dimensions.push_back(dimensions);
+                    getBBox(res, geom);
                 }
                 else if (body->GetChild(j)->GetName().compare(link_name) == 0)
                 {
                     ROS_INFO("%sGeometriesPlugin: Found [%s]!", GREEN, link_name.c_str());
                     gazebo::physics::CollisionPtr geom = boost::dynamic_pointer_cast<gazebo::physics::Collision>(body->GetChild(j));
-                    collision_box = geom->CollisionBoundingBox();
-
-                    min.x = collision_box.Min().X(); min.y = collision_box.Min().Y(); min.z = collision_box.Min().Z();
-                    max.x = collision_box.Max().X(); max.y = collision_box.Max().Y(); max.z = collision_box.Max().Z();
-                    centre.x = collision_box.Center().X(); centre.y = collision_box.Center().Y(); centre.z = collision_box.Center().Z();
-                    dimensions.x = collision_box.XLength(); dimensions.y = collision_box.YLength(); dimensions.z = collision_box.ZLength();
-
                     res.name.push_back(req.model_name);
-                    res.min_bounds.push_back(min);
-                    res.max_bounds.push_back(max);
-                    res.centre.push_back(centre);
-                    res.dimensions.push_back(dimensions);
+                    getBBox(res, geom);
                     break;
                 }
-                
             }
         }
     }

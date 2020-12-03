@@ -3,6 +3,7 @@
 #include <ros/ros.h>
 #include <std_srvs/Empty.h>
 #include <geometry_msgs/Vector3.h>
+#include <geometry_msgs/Pose.h>
 #include <cmath>
 #include <iostream>
 #include <chrono>
@@ -20,7 +21,7 @@ namespace util
         std::string name;
         geometry_msgs::Vector3 min;
         geometry_msgs::Vector3 max;
-        geometry_msgs::Vector3 centre;
         geometry_msgs::Vector3 dimension;
+        geometry_msgs::Pose pose;
     } CollisionGeometry;
 }

@@ -28,9 +28,9 @@ void Controller::run()
     {
         if (collision_geometries_[i].name.find(target_) != std::string::npos)
         {
-            goal << collision_geometries_[i].centre.x,
-                    collision_geometries_[i].centre.y,
-                    collision_geometries_[i].centre.z;
+            goal << collision_geometries_[i].pose.position.x,
+                    collision_geometries_[i].pose.position.y,
+                    collision_geometries_[i].pose.position.z;
             found_target = true;
             break;
         }
@@ -321,7 +321,7 @@ void Controller::getCollisionBoxes()
             {
                 util::CollisionGeometry temp;
                 temp.name = srv.response.name[j];
-                temp.centre = srv.response.centre[j];
+                temp.pose = srv.response.pose[j];
                 temp.min = srv.response.min_bounds[j];
                 temp.max = srv.response.max_bounds[j];
                 temp.dimension = srv.response.dimensions[j];
