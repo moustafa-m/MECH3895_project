@@ -26,22 +26,22 @@ Noteable/major changes will be listed here
 - Set SE3 state space bounds to min: {-1, -1, 0} and max: {1, 1, 0.9}
 - End effector start orientation included in OMPL start state
 - Moved some headers and typedefs from util.h to controller.h
+- simple_traj_node.cpp headers changed due to changes to util.h
 - Changed init poses for j2s6s300 and j2n6s300 (shoulder tilts back and elbow is horizontal relative to the ground plane)
 - Manipulator FK method returns std::pair composed of Eigen::Vector3d and Eigen::Quaterniond
 - Manipulator IK method takes in previous joint states and desired orientation as parameters along with the desired position
 - Manipulator IK desired end effector orientation is locked to {-0.5, -0.5, 0.5, 0.5} (quaternion) for the time being
 - Minor changes to debug prints format for Manipulator class
 - Change inputs to OMPL start and goal starts to use eigen vector3d and quaternion
-- Use goToInit() method rather than goToHome() due to fewer collisions, will be replaced by a OMPL method to incoporate collision avoidance
-- getJointGoal() igores first state in OMPL path and passes previously obtained joint states and quaternion orientation to manipulator IK method
+- Use goToInit() method rather than goToHome() due to fewer collisions, will be replaced by a OMPL method to incorporate collision avoidance
+- getJointGoal() ignores first state in OMPL path and passes previously obtained joint states and quaternion orientation to manipulator IK method
 - Gripper open position set to {0.4, 0.4, 0.4} rather than {0.0, 0.0, 0.0}
 - goToInit() checks if problem solved or not to open/close gripper
 - getGripperGoal() sets only one point rather than multiple (method will be removed/changed eventually)
 - Re-enable Gazebo grasp plugin
 - Add world argument for gazebo.launch
-- Gazbeo worlds now include collision geometries plugin
+- Gazebo worlds now include collision geometries plugin
 - Reduce P gain for j2s6s300 and j2n6s300 joint 6
-- simple_traj_node.cpp includes changed due to changes to util.h
 
 ### Removed
 
