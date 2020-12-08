@@ -3,6 +3,7 @@
 #include <ros/ros.h>
 #include <std_srvs/Empty.h>
 #include <geometry_msgs/Vector3.h>
+#include <geometry_msgs/Pose.h>
 #include <gazebo_geometries_plugin/geometry.h>
 #include <gazebo/gazebo.hh>
 #include <gazebo/physics/physics.hh>
@@ -22,9 +23,8 @@ namespace gazebo
 
         void Load(physics::WorldPtr _world, sdf::ElementPtr _sdf);
 
-        // void getBBox(physics::WorldPtr)
-
     private:
+        void getBBox(gazebo_geometries_plugin::geometry::Response &res, gazebo::physics::CollisionPtr geom);
         bool getGeometrySrv(gazebo_geometries_plugin::geometry::Request &req, gazebo_geometries_plugin::geometry::Response &res);
 
         ros::NodeHandle nh_;

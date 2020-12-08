@@ -2,9 +2,8 @@
 
 <root xmlns:xacro="http://www.ros.org/wiki/xacro">
 
-<!-- Not needed for now -->
-<!-- <xacro:include filename="$(find kinova_gazebo)/plugin/graspFix.urdf.xacro" />
-<xacro:gazebo_grasp_fix/> -->
+<xacro:include filename="$(find kinova_gazebo)/plugin/graspFix.urdf.xacro" />
+<xacro:gazebo_grasp_fix/>
 
 <xacro:include filename="$(find kinova_description)/urdf/kinova_finger_friction.xacro" />
 

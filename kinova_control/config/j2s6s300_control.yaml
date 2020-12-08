@@ -85,7 +85,7 @@ j2s6s300:
         d: 0
         i: 0
         i_clamp: 10
-        p: 500
+        p: 200
     joints:
     - j2s6s300_joint_1
     - j2s6s300_joint_2
@@ -176,7 +176,7 @@ j2s6s300:
     pid:
       d: 0
       i: 0
-      p: 500
+      p: 200
     type: effort_controllers/JointPositionController
   joint_state_controller:
     publish_rate: 50
