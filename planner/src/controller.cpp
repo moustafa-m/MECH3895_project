@@ -295,7 +295,7 @@ void Controller::getCollisionBoxes()
             {
                 util::CollisionGeometry temp;
                 temp.name = srv.response.name[j];
-                temp.centre = srv.response.centre[j];
+                temp.pose = srv.response.pose[j];
                 temp.min = srv.response.min_bounds[j];
                 temp.max = srv.response.max_bounds[j];
                 temp.dimension = srv.response.dimensions[j];
