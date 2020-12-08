@@ -31,8 +31,10 @@ public:
     
 private:
     void init();
-    void sendAction(trajectory_msgs::JointTrajectory joint_traj, trajectory_msgs::JointTrajectory gripper_traj);
+    void sendAction(trajectory_msgs::JointTrajectory joint_traj);
     void getCollisionBoxes();
+    void openGripper();
+    void closeGripper();
     void statesCallback(gazebo_msgs::ModelStatesConstPtr msg);
     bool homeSrvCallback(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);
     bool initSrvCallback(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);

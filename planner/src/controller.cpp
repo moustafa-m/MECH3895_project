@@ -85,7 +85,8 @@ void Controller::run()
         }
         ROS_INFO("%sObtaining joint angles...", CYAN);
         
-        this->sendAction(getJointGoal(solution), getGripperGoal(solution));
+        this->sendAction(this->getJointGoal(solution));
+        this->closeGripper();
         solved_ = true;
 
         //TODO use OMPL to return to home
@@ -179,9 +180,9 @@ trajectory_msgs::JointTrajectory Controller::getGripperGoal(og::PathGeometric& p
 void Controller::goToHome()
 {
     ROS_INFO("%sMoving to home position...", CYAN);
-    trajectory_msgs::JointTrajectory joints_msg, gripper_msg;
-    joints_msg.header.seq = gripper_msg.header.seq += 1;
-    joints_msg.header.stamp = gripper_msg.header.stamp = ros::Time::now();
+    trajectory_msgs::JointTrajectory joints_msg;
+    joints_msg.header.seq += 1;
+    joints_msg.header.stamp = ros::Time::now();
 
     // joints
     joints_msg.points.resize(1);
@@ -192,25 +193,16 @@ void Controller::goToHome()
     joints_msg.points[0].positions = manipulator_.getHomePose();
     joints_msg.points[0].time_from_start = ros::Duration(5);
 
-    // gripper
-    gripper_msg.joint_names.resize(3); gripper_msg.points.resize(1); gripper_msg.points[0].positions.resize(3);
-    gripper_msg.points[0].effort.resize(3);
-    gripper_msg.joint_names = manipulator_.getFingerNames();
-    
-    gripper_msg.points[0].positions = {0.95, 0.95, 0.95};
-    gripper_msg.points[0].effort = {5, 5, 5};
-    gripper_msg.points[0].time_from_start = ros::Duration(3);
-
-    this->sendAction(joints_msg, gripper_msg);
+    this->sendAction(joints_msg);
     ROS_INFO("%sDone, Kinova is at home position!", GREEN);
 }
 
 void Controller::goToInit()
 {
     ROS_INFO("%sMoving to init position...", CYAN);
-    trajectory_msgs::JointTrajectory joints_msg, gripper_msg;
-    joints_msg.header.seq = gripper_msg.header.seq += 1;
-    joints_msg.header.stamp = gripper_msg.header.stamp = ros::Time::now();
+    trajectory_msgs::JointTrajectory joints_msg;
+    joints_msg.header.seq += 1;
+    joints_msg.header.stamp = ros::Time::now();
 
     // joints
     joints_msg.points.resize(1); 
@@ -222,18 +214,12 @@ void Controller::goToInit()
     joints_msg.points[0].positions = manipulator_.getInitPose();
     for (int i = 0; i < manipulator_.getNumJoints(); i++) { joints_msg.points[0].effort[i] = 1000; }
     joints_msg.points[0].time_from_start = ros::Duration(5);
-    
-    // gripper
-    gripper_msg.joint_names.resize(3); gripper_msg.points.resize(1); gripper_msg.points[0].positions.resize(3);
-    gripper_msg.joint_names = manipulator_.getFingerNames();
-    
-    if (!solved_) { gripper_msg.points[0].positions = {0.4, 0.4, 0.4}; }
-    else { gripper_msg.points[0].positions = {0.95, 0.95, 0.95}; }
-    gripper_msg.points[0].time_from_start = ros::Duration(3);
 
-    joints_msg.header.stamp = gripper_msg.header.stamp = ros::Time::now();
+    joints_msg.header.stamp = ros::Time::now();
 
-    this->sendAction(joints_msg, gripper_msg);
+    this->sendAction(joints_msg);
+    if (!solved_) { this->openGripper(); }
+
     ROS_INFO("%sDone, Kinova is at init position!", GREEN);
 }
 
@@ -260,24 +246,18 @@ void Controller::init()
 
     armAction_->waitForServer();
     ROS_INFO("%sAll topics and servers up!", GREEN);
-
-    // timer_ = nh_.createTimer(ros::Duration(1/FREQ), &Controller::timerCallback, this);
 }
 
-void Controller::sendAction(trajectory_msgs::JointTrajectory joint_traj, trajectory_msgs::JointTrajectory gripper_traj)
+void Controller::sendAction(trajectory_msgs::JointTrajectory joint_traj)
 {
-    control_msgs::FollowJointTrajectoryGoal joint_goal, gripper_goal;
+    control_msgs::FollowJointTrajectoryGoal joint_goal;
     joint_goal.trajectory = joint_traj;
-    gripper_goal.trajectory = gripper_traj;
     
     ROS_INFO("%sSending tracjectory actions...", CYAN);
     joint_goal.trajectory.header.stamp = ros::Time::now();
     armAction_->sendGoal(joint_goal);
     armAction_->waitForResult();
 
-    gripper_goal.trajectory.header.stamp = ros::Time::now();
-    gripperAction_->sendGoal(gripper_goal);
-    gripperAction_->waitForResult();
     ROS_INFO("%sTrajectories complete!", GREEN);
 }
 
@@ -329,6 +309,50 @@ void Controller::getCollisionBoxes()
             }
         }
     }
+}
+
+void Controller::openGripper()
+{
+    trajectory_msgs::JointTrajectory msg;
+    msg.joint_names.resize(3);
+    msg.points.resize(1);
+
+    msg.joint_names = manipulator_.getFingerNames();
+
+    msg.points[0].positions.resize(3);
+    
+    msg.points[0].positions = {0.4, 0.4, 0.4};
+    msg.points[0].time_from_start = ros::Duration(2);
+
+    control_msgs::FollowJointTrajectoryGoal joint_goal, gripper_goal;
+    gripper_goal.trajectory = msg;
+    gripper_goal.trajectory.header.stamp = ros::Time::now();
+    gripperAction_->sendGoal(gripper_goal);
+    gripperAction_->waitForResult();
+
+    ROS_INFO("%sGripper opened!", GREEN);
+}
+
+void Controller::closeGripper()
+{
+    trajectory_msgs::JointTrajectory msg;
+    msg.joint_names.resize(3);
+    msg.points.resize(1);
+
+    msg.joint_names = manipulator_.getFingerNames();
+
+    msg.points[0].positions.resize(3);
+    
+    msg.points[0].positions = {0.95, 0.95, 0.95};
+    msg.points[0].time_from_start = ros::Duration(2);
+
+    control_msgs::FollowJointTrajectoryGoal joint_goal, gripper_goal;
+    gripper_goal.trajectory = msg;
+    gripper_goal.trajectory.header.stamp = ros::Time::now();
+    gripperAction_->sendGoal(gripper_goal);
+    gripperAction_->waitForResult();
+
+    ROS_INFO("%sGripper closed!", GREEN);
 }
 
 bool Controller::homeSrvCallback(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res)
