@@ -18,11 +18,6 @@
 #include <ompl/geometric/planners/fmt/BFMT.h>
 #include <ompl/geometric/SimpleSetup.h>
 
-#include <fcl/config.h>
-#include <fcl/collision.h>
-#include <fcl/broadphase/broadphase.h>
-#include <fcl/math/transform.h>
-
 #include "state_validity.h"
 #include "util.h"
 #include "defines.h"
@@ -45,7 +40,6 @@ public:
 
 private:
     void init();
-    bool isStateValid(const ob::State* state);
 
     std::vector<util::CollisionGeometry> collision_boxes_;
     std::string target_name_;
