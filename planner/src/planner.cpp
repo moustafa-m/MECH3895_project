@@ -10,6 +10,61 @@ Planner::~Planner()
 
 }
 
+og::PathGeometric Planner::plan()
+{
+    ob::PlannerPtr planner(new og::BFMT(si_));
+    planner->setProblemDefinition(pdef_);
+    planner->setup();
+
+    std::cout << CYAN << "Planner set to: " << planner->getName() << std::endl;
+    
+    auto t_start = HighResClk::now();
+    ob::PlannerStatus solved = planner->solve(60);
+    auto t_end = HighResClk::now();
+
+    int64_t duration = chrono::duration_cast<chrono::milliseconds>(t_end-t_start).count();
+    std::cout << CYAN << "Planner took: " << duration << " ms (" << duration/1000.0 << " sec)" << std::endl;
+
+    if (solved == ob::PlannerStatus::APPROXIMATE_SOLUTION)
+    {
+        ROS_WARN("Approximate solution, attempting to replan with timeout of 30 seconds!");
+        t_start = HighResClk::now();
+        planner->solve(30);
+        t_end = HighResClk::now();
+
+        duration = chrono::duration_cast<chrono::milliseconds>(t_end-t_start).count();
+        std::cout << CYAN << "Replanning took: " << duration << " ms (" << duration/1000.0 << " sec)" << std::endl;
+    }
+
+    if (solved == ob::PlannerStatus::EXACT_SOLUTION)
+    {
+        og::PathSimplifierPtr simplifier = og::PathSimplifierPtr(new og::PathSimplifier(si_));
+        simplifier->simplifyMax(*pdef_->getSolutionPath()->as<og::PathGeometric>());
+        
+        pdef_->getSolutionPath()->as<og::PathGeometric>()->interpolate(8);
+        
+        std::cout << GREEN << "Solution found!\n";
+
+        #ifdef DEBUG
+        std::cout << MAGENTA << "-----\n[DEBUG]\nObtained path:\n";
+        pdef_->getSolutionPath()->print(std::cout);
+        std::cout << "With cost: " << pdef_->getSolutionPath()->cost(pdef_->getOptimizationObjective())
+                << " and length: " << pdef_->getSolutionPath()->length() << std::endl;
+
+        std::cout << "Path in Matrix form: \n";
+        std::static_pointer_cast<og::PathGeometric>(pdef_->getSolutionPath())->printAsMatrix(std::cout);
+        std::cout << "-----" << NC << std::endl;
+        #endif
+    }
+    else
+    {
+        std::cout << RED << "No solution found!" << NC << std::endl;
+        exit(-1);
+    }
+    
+    return *pdef_->getSolutionPath()->as<og::PathGeometric>();
+}
+
 void Planner::setStart(const Eigen::Vector3d& start, const Eigen::Quaterniond& orientation)
 {
     ob::ScopedState<ob::SE3StateSpace> start_state(space_);
@@ -101,61 +156,6 @@ void Planner::init()
     // problem definition
     pdef_ = ob::ProblemDefinitionPtr(new ob::ProblemDefinition(si_));
     pdef_->setOptimizationObjective(ob::OptimizationObjectivePtr(new ob::PathLengthOptimizationObjective(si_)));
-}
-
-og::PathGeometric Planner::plan()
-{
-    ob::PlannerPtr planner(new og::BFMT(si_));
-    planner->setProblemDefinition(pdef_);
-    planner->setup();
-
-    std::cout << CYAN << "Planner set to: " << planner->getName() << std::endl;
-    
-    auto t_start = HighResClk::now();
-    ob::PlannerStatus solved = planner->solve(60);
-    auto t_end = HighResClk::now();
-
-    int64_t duration = chrono::duration_cast<chrono::milliseconds>(t_end-t_start).count();
-    std::cout << CYAN << "Planner took: " << duration << " ms " << "(" << duration/1000.0 << " sec)" << std::endl;
-
-    if (solved == ob::PlannerStatus::APPROXIMATE_SOLUTION)
-    {
-        ROS_WARN("Approximate solution, attempting to replan with timeout of 30 seconds!");
-        t_start = HighResClk::now();
-        planner->solve(30);
-        t_end = HighResClk::now();
-
-        duration = chrono::duration_cast<chrono::milliseconds>(t_end-t_start).count();
-        std::cout << CYAN << "Replanning took: " << duration << " ms " << "(" << duration/1000.0 << " sec)" << std::endl;
-    }
-
-    if (solved == ob::PlannerStatus::EXACT_SOLUTION)
-    {
-        og::PathSimplifierPtr simplifier = og::PathSimplifierPtr(new og::PathSimplifier(si_));
-        simplifier->simplifyMax(*pdef_->getSolutionPath()->as<og::PathGeometric>());
-        
-        pdef_->getSolutionPath()->as<og::PathGeometric>()->interpolate(8);
-        
-        std::cout << GREEN << "Solution found!\n";
-
-        #ifdef DEBUG
-        std::cout << MAGENTA << "-----\n[DEBUG]\nObtained path:\n";
-        pdef_->getSolutionPath()->print(std::cout);
-        std::cout << "With cost: " << pdef_->getSolutionPath()->cost(pdef_->getOptimizationObjective())
-                << " and length: " << pdef_->getSolutionPath()->length() << std::endl;
-
-        std::cout << "Path in Matrix form: \n";
-        std::static_pointer_cast<og::PathGeometric>(pdef_->getSolutionPath())->printAsMatrix(std::cout);
-        std::cout << "-----" << NC << std::endl;
-        #endif
-    }
-    else
-    {
-        std::cout << RED << "No solution found!" << NC << std::endl;
-        exit(-1);
-    }
-    
-    return *pdef_->getSolutionPath()->as<og::PathGeometric>();
 }
 
 // int main(int argc, char** argv)
