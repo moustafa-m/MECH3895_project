@@ -2,6 +2,25 @@
 
 Noteable/major changes will be listed here
 
+## 8th Dec 2020
+
+### Added
+
+- openGripper() and closeGripper() methods to controller.cpp
+
+### Modified
+
+- GeometriesPlugin returns geometry_msgs/Pose for centre and bounding box orientation instead of geometry_msgs/Vec3f for just centre
+- GeometriesPlugin now returns an OOBB if object collision geometry is a box shape, otherwise returns an AABB
+- Set OMPL motion validity resolution to 0.001
+- Kinova fingers' collisions now modelled as AABB with increased dimensions to enforce some clearance
+- state_validity.h updated and integrated in planner.cpp
+
+### Removed
+
+- isStateValid() removed from planner.cpp
+- getGripperGoal() removed from controller.cpp
+
 ## 29th Nov 2020
 
 ### Added
