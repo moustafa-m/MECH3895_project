@@ -2,6 +2,16 @@
 
 Noteable/major changes will be listed here
 
+## 12th Dec 2020
+
+### Added
+
+- Created package to visualise collision geometries (geometries_visualiser)
+
+### Modified
+
+- Kinova now reverses the path it took to return to home
+
 ## 8th Dec 2020
 
 ### Added
