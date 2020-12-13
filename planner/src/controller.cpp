@@ -83,14 +83,22 @@ void Controller::run()
 
             marker_pub_.publish(marker);
         }
-        ROS_INFO("%sObtaining joint angles...", CYAN);
+        ROS_INFO_STREAM(CYAN << "Obtaining joint angles for " << solution.getStateCount() << " states...");
         
-        this->sendAction(this->getJointGoal(solution));
+        trajectory_msgs::JointTrajectory traj = this->getJointGoal(solution);
+        this->sendAction(traj);
         this->closeGripper();
         solved_ = true;
 
-        //TODO use OMPL to return to home
-        this->goToInit();
+        traj.points.pop_back();
+        std::reverse(traj.points.begin(), traj.points.end());
+        trajectory_msgs::JointTrajectoryPoint point;
+        point.velocities = std::vector<double>(7, 0);
+        point.positions = manipulator_.getInitPose();
+        traj.points.push_back(point);
+        
+        for (size_t i = 0; i < traj.points.size(); i++) { traj.points[i].time_from_start = ros::Duration(5.0+(i*2)); }
+        this->sendAction(traj);
         ros::shutdown();
     }
 }
