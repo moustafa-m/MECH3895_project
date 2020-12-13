@@ -42,6 +42,7 @@ void Controller::run()
     marker.id = 0;
     marker.scale.x = marker.scale.y = 0.02;
     marker.color.b = marker.color.a = 1.0;
+    marker.color.r = marker.color.g = 0.0;
     marker.ns = "goal";
     marker.header.frame_id = manipulator_.getName() + "_link_base";
     marker.header.stamp = ros::Time::now();
@@ -68,7 +69,8 @@ void Controller::run()
         {
             marker.id = i;
             marker.scale.x = marker.scale.y = 0.02;
-            marker.color.g = marker.color.a = 1.0;
+            marker.color.g = marker.color.r = marker.color.a = 1.0;
+            marker.color.b = 0.0;
             marker.ns = "path";
             marker.header.frame_id = manipulator_.getName() + "_link_base";
             marker.header.stamp = ros::Time::now();
