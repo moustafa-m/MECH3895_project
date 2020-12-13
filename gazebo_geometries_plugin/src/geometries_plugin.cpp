@@ -73,15 +73,15 @@ bool GeometriesPlugin::getGeometrySrv(gazebo_geometries_plugin::geometry::Reques
     {
         find_link = true;
 
-        ROS_INFO("%sGeometriesPlugin: Requests for link [%s] recieved!", GREEN, req.model_name.c_str());
+        // ROS_INFO("%sGeometriesPlugin: Requests for link [%s] recieved!", GREEN, req.model_name.c_str());
         std::string name = req.model_name.substr(0, pos);
-        ROS_INFO("%sGeometriesPlugin: Looking for parent [%s]", GREEN, name.c_str());
+        // ROS_INFO("%sGeometriesPlugin: Looking for parent [%s]", GREEN, name.c_str());
         model = world_->ModelByName(name);
     }
     else
     {
         model = world_->ModelByName(req.model_name);
-        ROS_INFO("%sGeometriesPlugin: Looking for [%s]", GREEN, req.model_name.c_str());
+        // ROS_INFO("%sGeometriesPlugin: Looking for [%s]", GREEN, req.model_name.c_str());
     }
     
     if (!model)
@@ -95,7 +95,7 @@ bool GeometriesPlugin::getGeometrySrv(gazebo_geometries_plugin::geometry::Reques
         return false;
     }
 
-    ROS_INFO("%sGeometriesPlugin: Found %d child links for [%s]", GREEN, model->GetChildCount(), req.model_name.c_str());
+    // ROS_INFO("%sGeometriesPlugin: Found %d child links for [%s]", GREEN, model->GetChildCount(), req.model_name.c_str());
     
     // loop through parent model child links
     for (unsigned int i = 0 ; i < model->GetChildCount(); i ++)
@@ -125,7 +125,7 @@ bool GeometriesPlugin::getGeometrySrv(gazebo_geometries_plugin::geometry::Reques
                 }
                 else if (body->GetChild(j)->GetName().compare(link_name) == 0)
                 {
-                    ROS_INFO("%sGeometriesPlugin: Found [%s]!", GREEN, link_name.c_str());
+                    // ROS_INFO("%sGeometriesPlugin: Found [%s]!", GREEN, link_name.c_str());
                     gazebo::physics::CollisionPtr geom = boost::dynamic_pointer_cast<gazebo::physics::Collision>(body->GetChild(j));
                     res.name.push_back(req.model_name);
                     getBBox(res, geom);
@@ -136,7 +136,7 @@ bool GeometriesPlugin::getGeometrySrv(gazebo_geometries_plugin::geometry::Reques
     }
     
     res.message = "GeomtriesPlugin: Model found!";
-    ROS_INFO("%sGeometriesPlugin: Obtained collision geometries for [%s]", GREEN, req.model_name.c_str());
+    // ROS_INFO("%sGeometriesPlugin: Obtained collision geometries for [%s]", GREEN, req.model_name.c_str());
 
     return true;
 }
