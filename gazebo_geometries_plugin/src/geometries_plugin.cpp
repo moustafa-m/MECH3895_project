@@ -36,7 +36,7 @@ void GeometriesPlugin::getBBox(gazebo_geometries_plugin::geometry::Response &res
     min.x = collision_box.Min().X(); min.y = collision_box.Min().Y(); min.z = collision_box.Min().Z();
     max.x = collision_box.Max().X(); max.y = collision_box.Max().Y(); max.z = collision_box.Max().Z();
     
-    // if the geometry has a box shape, an Object Oriented Bounding Box (OOBB) can be obtained, otherwise
+    // if the geometry has a box shape, an Object Oriented Bounding Box (OOBB) can be obtained directly, otherwise
     // an Axis Aligned Bounding Box (AABB) is obtained. The AABB is aligned with the world axes, whereas the
     // OOBB is aligned with object axes
     if (shape->HasType(gazebo::physics::Shape::BOX_SHAPE))
@@ -44,6 +44,18 @@ void GeometriesPlugin::getBBox(gazebo_geometries_plugin::geometry::Response &res
         gazebo::physics::BoxShape *box = static_cast<gazebo::physics::BoxShape*>(shape.get());
 
         dimensions.x = box->Size().X(); dimensions.y = box->Size().Y(); dimensions.z = box->Size().Z();
+        pose.orientation.x = geom->WorldPose().Rot().X(); pose.orientation.y = geom->WorldPose().Rot().Y(); pose.orientation.z = geom->WorldPose().Rot().Z();
+        pose.orientation.w = geom->WorldPose().Rot().W();
+    }
+    else if (shape->HasType(gazebo::physics::Shape::CYLINDER_SHAPE))
+    {
+        // cylinders will be assumed to be box shaped to obtain OOBB
+
+        gazebo::physics::CylinderShape *cylinder = static_cast<gazebo::physics::CylinderShape*>(shape.get());
+
+        dimensions.x = cylinder->GetRadius()*2; dimensions.y = cylinder->GetRadius()*2;
+        dimensions.z = cylinder->GetLength();
+
         pose.orientation.x = geom->WorldPose().Rot().X(); pose.orientation.y = geom->WorldPose().Rot().Y(); pose.orientation.z = geom->WorldPose().Rot().Z();
         pose.orientation.w = geom->WorldPose().Rot().W();
     }
