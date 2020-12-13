@@ -16,7 +16,5 @@ int main(int argc, char** argv)
         ros::spinOnce();
     }
 
-    std::cout << GREEN << "Exiting!" << NC << std::endl;
-
     return EXIT_SUCCESS;
 }

@@ -34,5 +34,4 @@ private:
     gazebo_msgs::ModelStates states_;
     
     std::vector<std::string> static_objs_;
-    std::vector<std::string> nonstatic_objs_;
 };
