@@ -27,6 +27,8 @@ void GeometriesPlugin::Load(physics::WorldPtr _world, sdf::ElementPtr _sdf)
     ros::param::param<std::vector<std::string>>("/gazebo/static_objects", static_objs_, {"INVALID"});
     ros::param::param<std::string>("/robot_name", robot_name_, "j2s7s300");
 
+    this->initKinovaDimensions();
+
     base_frame_id_ = robot_name_ + "_link_base";
     geometries_ns_ = "geometries";
 
@@ -47,6 +49,47 @@ void GeometriesPlugin::queueThread()
         queue_.callAvailable(ros::WallDuration(0.05));
         this->publishMarkers();
         rate.sleep();
+    }
+}
+
+void GeometriesPlugin::initKinovaDimensions()
+{
+    using namespace geometry_msgs;
+
+    // fingers
+    Vector3 link_finger_1, link_finger_2, link_finger_3;
+    
+    // links (names match the stl files in kinova_description package)
+    Vector3 base, shoulder, arm, arm_half_1, arm_half_2, forearm, wrist, wrist_spherical_1, wrist_spherical_2, hand_3finger;
+
+    // values are obtained by measuring mesh files in kinova_description package
+    link_finger_1.x = 0.13, link_finger_1.y = 0.025, link_finger_1.z = 0.025;
+    link_finger_2 = link_finger_3 = link_finger_1;
+    
+    base.x = 0.083, base.y = 0.083, base.z = 0.16;
+    shoulder.x = 0.083, shoulder.y = 0.083, shoulder.z = 0.16;
+    arm.x = 0.083, arm.y = 0.5, arm.z = 0.42;
+    arm_half_1.x = 0.083, arm_half_1.y = 0.245, arm_half_1.z = 0.0855;
+    arm_half_2.x = 0.083, arm_half_2.y = 0.0855, arm_half_2.z = 0.245;
+    forearm.x = 0.082, forearm.y = 0.248, forearm.z = 0.063;
+    wrist.x = 0.065, wrist.y = 0.085, wrist.z = 0.09;                                       // curved wrist
+    wrist_spherical_1.x = 0.063, wrist_spherical_1.y = 0.063, wrist_spherical_1.z = 0.15;
+    wrist_spherical_2.x = 0.063, wrist_spherical_2.y = 0.15, wrist_spherical_2.z = 0.09;
+    hand_3finger.x = 0.085, hand_3finger.y = 0.10, hand_3finger.z = 0.12;
+
+    if (robot_name_.compare("j2s7s300") == 0)
+    {
+        kinova_dimensions_ = {base, shoulder, arm_half_1, arm_half_2, forearm, wrist_spherical_1, wrist_spherical_2, hand_3finger,
+            link_finger_1, link_finger_2, link_finger_3};
+    }
+    else if (robot_name_.compare("j2s6s300") == 0)
+    {
+        kinova_dimensions_ = {base, shoulder, arm, forearm, wrist_spherical_1, wrist_spherical_2, hand_3finger, link_finger_1,
+            link_finger_2, link_finger_3};
+    }
+    else if (robot_name_.compare("j2n6s300") == 0)
+    {
+        kinova_dimensions_ = {base, shoulder, arm, forearm, wrist, wrist, hand_3finger, link_finger_1, link_finger_2, link_finger_3};
     }
 }
 
@@ -122,6 +165,41 @@ void GeometriesPlugin::getBBox(gazebo_geometries_plugin::geometry::Response &res
     min.x = collision_box.Min().X(); min.y = collision_box.Min().Y(); min.z = collision_box.Min().Z();
     max.x = collision_box.Max().X(); max.y = collision_box.Max().Y(); max.z = collision_box.Max().Z();
     pose.position.x = collision_box.Center().X(); pose.position.y = collision_box.Center().Y(); pose.position.z = collision_box.Center().Z();
+    
+    if (res.name[0].find(robot_name_) != std::string::npos)
+    {
+        if (geom->GetName().find("finger_tip") != std::string::npos)
+        {
+            res.name.pop_back();
+            return;
+        }
+        else if (geom->GetName().find("finger") != std::string::npos)
+        {
+            res.dimensions.push_back(kinova_dimensions_.back());
+        }
+        else
+        {
+            std::string substr = geom->GetName().substr(geom->GetName().find("link_"));
+            int idx = 0;
+            for (int i = 0; i < substr.length(); i++)
+            {
+                if (std::isdigit(substr[i]))
+                {
+                    idx = std::stoi(substr.substr(i, 1));
+                    break;
+                }
+            }
+            res.dimensions.push_back(kinova_dimensions_[idx]);
+        }
+
+        pose.orientation.x = geom->WorldPose().Rot().X(); pose.orientation.y = geom->WorldPose().Rot().Y(); pose.orientation.z = geom->WorldPose().Rot().Z();
+        pose.orientation.w = geom->WorldPose().Rot().W();
+
+        res.min_bounds.push_back(min);
+        res.max_bounds.push_back(max);
+        res.pose.push_back(pose);
+        return;
+    }
     
     // if the geometry has a box shape, an Object Oriented Bounding Box (OOBB) can be obtained directly, otherwise
     // an Axis Aligned Bounding Box (AABB) is obtained. The AABB is aligned with the world axes, whereas the

@@ -26,6 +26,7 @@ namespace gazebo
 
     private:
         void queueThread();
+        void initKinovaDimensions();
         void publishMarkers();
         void getBBox(gazebo_geometries_plugin::geometry::Response &res, gazebo::physics::CollisionPtr geom);
         bool getGeometrySrv(gazebo_geometries_plugin::geometry::Request &req, gazebo_geometries_plugin::geometry::Response &res);
@@ -44,6 +45,7 @@ namespace gazebo
 
         std::vector<std::string> static_objs_;
         std::string robot_name_;
+        std::vector<geometry_msgs::Vector3> kinova_dimensions_;
     };
 
 GZ_REGISTER_WORLD_PLUGIN(GeometriesPlugin)
