@@ -1,3 +1,0 @@
-<launch>
-    <node name="visualiser_node"   type="visualiser" pkg="geometries_visualiser" output="screen" />
-</launch>

@@ -18,9 +18,6 @@
   <rosparam command="load"  file="$(find planner)/params/params.yaml" />
   <param name="robot_name"  type="string"   value="$(arg kinova_robotName)" />
   
-  <!-- Visualising node -->
-  <include file="$(find geometries_visualiser)/launch/visualiser.launch" />
-  
   <!-- We resume the logic in empty_world.launch, changing only the name of the world to be launched -->
   <include file="$(find gazebo_ros)/launch/empty_world.launch">
     <arg name="world_name" value="$(find planner)/worlds/$(arg world).world"/>
