@@ -2,6 +2,22 @@
 
 Noteable/major changes will be listed here
 
+## 15th Dec 2020
+
+### Added
+
+- geometries plugin now supports OOBB for Kinova links and fingers! (Implementation done by using dimensions obtained from mesh files)
+
+### Modified
+
+- geometries plugin now publishes collision markers for Rviz and optionally Kinova collision markers (set by ROS param)
+- state validity uses 3 fingers for collision detection rather than merging finger 2 and 3
+- state validity uses OOBB for effector link and fingers
+
+### Removed
+
+- geometries_visualiser package (functionality moved to geometries plugin)
+
 ## 12th Dec 2020
 
 ### Added
