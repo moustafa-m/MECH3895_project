@@ -25,7 +25,10 @@ void GeometriesPlugin::Load(physics::WorldPtr _world, sdf::ElementPtr _sdf)
     nh_->setCallbackQueue(&queue_);
 
     ros::param::param<std::vector<std::string>>("/gazebo/static_objects", static_objs_, {"INVALID"});
+    ros::param::param<bool>("/gazebo/pub_arm_geom", pub_arm_geom_, false);
     ros::param::param<std::string>("/robot_name", robot_name_, "j2s7s300");
+
+    ROS_INFO_COND(pub_arm_geom_, "%s[GeometriesPlugin]: Publishing Kinova collision geometries!", GREEN);
 
     this->initKinovaDimensions();
 
@@ -104,7 +107,7 @@ void GeometriesPlugin::publishMarkers()
 
     for (size_t i = 0; i < models.size(); i++)
     {
-        if (models[i]->GetName().find(robot_name_) != std::string::npos||
+        if ((models[i]->GetName().find(robot_name_) != std::string::npos && !pub_arm_geom_) ||
             models[i]->GetName().find("ground_plane") != std::string::npos)
             { continue; }
 

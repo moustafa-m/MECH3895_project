@@ -31,6 +31,8 @@ namespace gazebo
         void getBBox(gazebo_geometries_plugin::geometry::Response &res, gazebo::physics::CollisionPtr geom);
         bool getGeometrySrv(gazebo_geometries_plugin::geometry::Request &req, gazebo_geometries_plugin::geometry::Response &res);
 
+        bool pub_arm_geom_;
+        
         std::unique_ptr<ros::NodeHandle> nh_;
         ros::CallbackQueue queue_;
         std::thread queue_thread_;
