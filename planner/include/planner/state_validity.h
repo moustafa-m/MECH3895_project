@@ -57,39 +57,56 @@ public:
 
         auto sign = [](double val) { return val < 0 ? -1 : 1; };
         
-        // NOTE: the last link's bounding box is slightly enlarged to enforce some clearance.
-        // The orientation of the end effector and fingers is assumed to be the same as the start orientation,
-        // this makes it easier to use the AABB obtained from Gazebo
-        double x_offset = 0.05, y_offset = 0.02;
         util::CollisionGeometry effector = collision_boxes_->at(idx);
-        effector.dimension.x += x_offset; effector.dimension.y += y_offset;
         std::shared_ptr<fcl::CollisionGeometry> effectorbox;
         effectorbox = std::shared_ptr<fcl::CollisionGeometry>(new fcl::Box(effector.dimension.x, effector.dimension.y, effector.dimension.z));
         fcl::CollisionObject effectorobj(effectorbox);
-        fcl::Vec3f effector_xyz(x-(sign(x)*(0.12+(effector.dimension.x/2))), y, z); // change center of collision box to be at centre of last link
-        fcl::Quaternion3f effector_quat(1, 0, 0, 0); // this is an AABB, so no rotation
+        fcl::Vec3f effector_xyz(x-(sign(x)*(0.12+(effector.dimension.x/2))), y, z); // set coordinates to be at centre of last link
+        // the orientation at the start is assumed to be maintained throughout the path
+        // the starting orientation of the effector should be the the same as the end
+        fcl::Quaternion3f effector_quat(effector.pose.orientation.w,
+                    effector.pose.orientation.x,
+                    effector.pose.orientation.y,
+                    effector.pose.orientation.z);
         effectorobj.setTransform(effector_quat, effector_xyz);
 
+        // ----> fingers
         // Thumb
         util::CollisionGeometry kinova_thumb = collision_boxes_->at(collision_boxes_->size()-3);
         std::shared_ptr<fcl::CollisionGeometry> thumbbox;
-        thumbbox = std::shared_ptr<fcl::CollisionGeometry>(new fcl::Box(kinova_thumb.dimension.x+0.04, kinova_thumb.dimension.y, kinova_thumb.dimension.z));
+        thumbbox = std::shared_ptr<fcl::CollisionGeometry>(new fcl::Box(kinova_thumb.dimension.x, kinova_thumb.dimension.y, kinova_thumb.dimension.z));
         fcl::CollisionObject thumbobj(thumbbox);
-        fcl::Vec3f thumb_xyz(x-(sign(x)*0.05), y+0.08, z); // change center of thumb
-        // fcl::Quaternion3f thumb_quat(0.1542514, 0, 0, 0.9880316);
-        fcl::Quaternion3f thumb_quat(1, 0, 0, 0);
+        fcl::Vec3f thumb_xyz(x-(sign(x)*0.03), y+0.06, z); // set coordinates to be centre of thumb
+        fcl::Quaternion3f thumb_quat(kinova_thumb.pose.orientation.w,
+                    kinova_thumb.pose.orientation.x,
+                    kinova_thumb.pose.orientation.y,
+                    kinova_thumb.pose.orientation.z);
         thumbobj.setTransform(thumb_quat, thumb_xyz);
 
-        // fingers NOTE: the collision geometry for the two fingers is taken to be one box for simplification hence
-        // z dimension is multiplied by 2 and has 2cm added
-        util::CollisionGeometry kinova_finger = collision_boxes_->at(collision_boxes_->size()-2);
+        // finger
+        util::CollisionGeometry kinova_finger = collision_boxes_->at(collision_boxes_->size()-1);
         std::shared_ptr<fcl::CollisionGeometry> fingerbox;
-        fingerbox = std::shared_ptr<fcl::CollisionGeometry>(new fcl::Box(kinova_finger.dimension.x+0.04, kinova_finger.dimension.y, kinova_finger.dimension.z*2+0.02));
+        fingerbox = std::shared_ptr<fcl::CollisionGeometry>(new fcl::Box(kinova_finger.dimension.x, kinova_finger.dimension.y, kinova_finger.dimension.z));
         fcl::CollisionObject fingerobj(fingerbox);
-        fcl::Vec3f finger_xyz(x-(sign(x)*0.05), y-0.08, z); // change center of fingers
-        // fcl::Quaternion3f finger_quat(0.1542514, 0, 0, -0.9880316);
-        fcl::Quaternion3f finger_quat(1, 0, 0, 0);
+        fcl::Vec3f finger_xyz(x-(sign(x)*0.025), y-0.06, z+0.025); // set coordinates to be centre of finger
+        fcl::Quaternion3f finger_quat(kinova_finger.pose.orientation.w,
+                    kinova_finger.pose.orientation.x,
+                    kinova_finger.pose.orientation.y,
+                    kinova_finger.pose.orientation.z);
         fingerobj.setTransform(finger_quat, finger_xyz);
+
+        // finger
+        util::CollisionGeometry kinova_finger2 = collision_boxes_->at(collision_boxes_->size()-2);
+        std::shared_ptr<fcl::CollisionGeometry> fingerbox2;
+        fingerbox2 = std::shared_ptr<fcl::CollisionGeometry>(new fcl::Box(kinova_finger.dimension.x, kinova_finger.dimension.y, kinova_finger.dimension.z));
+        fcl::CollisionObject fingerobj2(fingerbox);
+        fcl::Vec3f finger_xyz2(x-(sign(x)*0.025), y-0.06, z-0.025); // set coordinates to be centre of finger
+        fcl::Quaternion3f finger_quat2(kinova_finger2.pose.orientation.w,
+                    kinova_finger2.pose.orientation.x,
+                    kinova_finger2.pose.orientation.y,
+                    kinova_finger2.pose.orientation.z);
+        fingerobj2.setTransform(finger_quat2, finger_xyz2);
+        // <---- fingers
 
         for (size_t i = 0; i < collision_boxes_->size(); i++)
         {
@@ -109,12 +126,13 @@ public:
             obj.setTransform(quat, xyz);
 
             fcl::CollisionRequest request(1, false, 1, false);
-            fcl::CollisionResult result, thumb_result, finger_result;
+            fcl::CollisionResult result, thumb_result, finger_result, finger2_result;
             fcl::collide(&effectorobj, &obj, request, result);
             fcl::collide(&thumbobj, &obj, request, thumb_result);
             fcl::collide(&fingerobj, &obj, request, finger_result);
+            fcl::collide(&fingerobj2, &obj, request, finger2_result);
 
-            if (result.isCollision() || thumb_result.isCollision() || finger_result.isCollision())
+            if (result.isCollision() || thumb_result.isCollision() || finger_result.isCollision() || finger2_result.isCollision())
             {
                 #ifdef DEBUG
                 fcl::Vec3f translation; std::string name; geometry_msgs::Vector3 dim; fcl::Contact contact; fcl::Quaternion3f rot;
@@ -127,7 +145,8 @@ public:
                 
                 if (result.isCollision()) { translation = effectorobj.getTranslation(); name = "effector"; dim = effector.dimension; rot = effector_quat; }
                 else if (thumb_result.isCollision()) { translation = thumbobj.getTranslation(); name = "thumb"; dim = kinova_thumb.dimension; rot = thumb_quat; }
-                else { translation = fingerobj.getTranslation(); name = "finger"; dim = kinova_finger.dimension; rot = finger_quat; }
+                else if (finger_result.isCollision()) { translation = fingerobj.getTranslation(); name = "finger"; dim = kinova_finger.dimension; rot = finger_quat; }
+                else { translation = fingerobj2.getTranslation(); name = "finger2"; dim = kinova_finger2.dimension; rot = finger_quat2; }
 
                 std::cout << "link name: " << name << "\nlink position: " << translation << "\nRotation: " << rot << "\nlink dimensions: {"
                         << dim.x << ", " << dim.y << ", " << dim.z << "}\n-----" << std::endl;
