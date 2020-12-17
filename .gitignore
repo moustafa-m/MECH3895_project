@@ -1,2 +1,4 @@
 .vscode/
-planner/paths/*.txt
+planner/paths/*
+!planner/paths/*.sh
+!planner/paths/*.py

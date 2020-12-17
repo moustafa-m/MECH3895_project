@@ -16,7 +16,8 @@ og::PathGeometric Planner::plan()
     planner->setProblemDefinition(pdef_);
     planner->setup();
 
-    std::cout << CYAN << "Planner set to: " << planner->getName() << std::endl;
+    name_ = planner->getName();
+    std::cout << CYAN << "Planner set to: " << name_ << std::endl;
     
     auto t_start = HighResClk::now();
     ob::PlannerStatus solved = planner->solve(60);
@@ -35,6 +36,8 @@ og::PathGeometric Planner::plan()
         duration = chrono::duration_cast<chrono::milliseconds>(t_end-t_start).count();
         std::cout << CYAN << "Replanning took: " << duration << " ms (" << duration/1000.0 << " sec)" << std::endl;
     }
+
+    plan_time_ = duration;
 
     if (solved == ob::PlannerStatus::EXACT_SOLUTION)
     {
@@ -118,25 +121,43 @@ void Planner::setManipulatorName(const std::string& name)
     manipulator_name_ = name;
 }
 
-void Planner::savePath(const og::PathGeometric& path)
+void Planner::savePath()
 {
+    const og::PathGeometric& path = *pdef_->getSolutionPath()->as<og::PathGeometric>();
     auto time = std::time(nullptr);
     
     std::stringstream ss;
-    ss << std::put_time(std::localtime(&time), "%b-%a-%R");
-    std::string s = ros::package::getPath("planner") + "/paths/" + ss.str() + ".txt";
+    ss << std::put_time(std::localtime(&time), "%y-%m-%d-%X");
+    std::string s = ros::package::getPath("planner") + "/paths/" + name_ + "/";
+
+    if (!boost::filesystem::exists(s))
+    {
+        if (!boost::filesystem::create_directory(s))
+        {
+            ROS_ERROR("Unable to create directory to save path!");
+            return;
+        }
+    }
+
+    std::string pathtxt = s + ss.str() + ".txt";
+    std::string statstxt = s + ss.str() + "_stats.txt";
     
-    std::cout << GREEN << "Saving solution path to paths/" << ss.str() << ".txt\n" <<
+    std::cout << GREEN << "Saving solution path to paths/" << name_ << "/" << ss.str() << ".txt\n" <<
             "Run Python or Bash scripts in paths/ to visualise" << std::endl;
     
-    std::ofstream file;
-    file.open(s, std::fstream::out);
-    path.printAsMatrix(file);
-    file.flush();
-    file.close();
+    std::ofstream path_file, stats_file;
+    path_file.open(pathtxt, std::fstream::out);
+    path.printAsMatrix(path_file);
+    path_file.flush();
+    path_file.close();
+
+    stats_file.open(statstxt, std::fstream::out);
+    stats_file << plan_time_/1000.0 << "\t" << path.length() << "\t" << path.cost(pdef_->getOptimizationObjective());
+    stats_file.flush();
+    stats_file.close();
 
     std::string dir = ros::package::getPath("planner") + "/paths";
-    std::string cmd = "cd " + dir + "&& ./plot.sh -f " + ss.str() + ".txt";
+    std::string cmd = "cd " + dir + "&& ./plot.sh -f " + name_ + "/" + ss.str() + ".txt";
     system(cmd.c_str());
 }
 

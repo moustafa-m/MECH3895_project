@@ -158,7 +158,7 @@ void Manipulator::initSolvers()
     std::string chain_start, chain_end;
     chain_start = name_ + "_link_base";
     chain_end = name_ + "_end_effector";
-    ik_solver_ = new TRAC_IK::TRAC_IK(chain_start, chain_end, "/robot_description", 10, 1e-3, TRAC_IK::Distance);
+    ik_solver_ = new TRAC_IK::TRAC_IK(chain_start, chain_end, "/robot_description", 0.5, 1e-3, TRAC_IK::Distance);
 
     bool valid = ik_solver_->getKDLChain(chain_);
     if (!valid)
