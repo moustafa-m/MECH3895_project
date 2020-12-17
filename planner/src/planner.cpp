@@ -76,11 +76,13 @@ void Planner::setStart(const Eigen::Vector3d& start, const Eigen::Quaterniond& o
     pdef_->clearStartStates();
     pdef_->addStartState(start_state);
 
+    #ifdef DEBUG
     std::cout << MAGENTA << "[DEBUG] Start: {" << start_state->getX() << ", " << start_state->getY() << ", " 
             << start_state->getZ() << "} {" << start_state->as<ob::SO3StateSpace::StateType>(1)->x << ", "
             << start_state->as<ob::SO3StateSpace::StateType>(1)->y << ", "
             << start_state->as<ob::SO3StateSpace::StateType>(1)->z << ", "
             << start_state->as<ob::SO3StateSpace::StateType>(1)->w << "}" << std::endl;
+    #endif
 }
 
 void Planner::setGoal(const Eigen::Vector3d& goal, const std::string& obj_name)
@@ -97,11 +99,13 @@ void Planner::setGoal(const Eigen::Vector3d& goal, const std::string& obj_name)
     pdef_->clearGoal();
     pdef_->setGoalState(goal_state);
 
+    #ifdef DEBUG
     std::cout << MAGENTA << "[DEBUG] Goal: {" << goal_state->getX() << ", " << goal_state->getY() << ", "
             << goal_state->getZ() << "} {" << goal_state->as<ob::SO3StateSpace::StateType>(1)->x << ", "
             << goal_state->as<ob::SO3StateSpace::StateType>(1)->y << ", "
             << goal_state->as<ob::SO3StateSpace::StateType>(1)->z << ", "
             << goal_state->as<ob::SO3StateSpace::StateType>(1)->w << "}" << std::endl;
+    #endif
 }
 
 void Planner::setCollisionGeometries(const std::vector<util::CollisionGeometry>& collision_boxes)

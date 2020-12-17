@@ -1,2 +1,3 @@
-#TODO
-robot:  'j2n6s300'  # Kinova robot name, defaults to 6-DoF Jaco manipulator
+gazebo:
+  static_objects:  ['table', 'cinder_block', 'cabinet', 'bookshelf']
+  pub_arm_geom:     false

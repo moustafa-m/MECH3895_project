@@ -140,11 +140,11 @@ j2s7s300:
   #   type: effort_controllers/JointPositionController
   # finger_tip_3_position_controller:
   #   joint: j2s7s300_joint_finger_tip_3
-    pid:
-      d: 0
-      i: 0
-      p: 0.5
-    type: effort_controllers/JointPositionController
+  #   pid:
+  #     d: 0
+  #     i: 0
+  #     p: 0.5
+  #   type: effort_controllers/JointPositionController
   joint_1_position_controller:
     joint: j2s7s300_joint_1
     pid:

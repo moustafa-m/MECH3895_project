@@ -42,6 +42,7 @@ void Controller::run()
     marker.id = 0;
     marker.scale.x = marker.scale.y = 0.02;
     marker.color.b = marker.color.a = 1.0;
+    marker.color.r = marker.color.g = 0.0;
     marker.ns = "goal";
     marker.header.frame_id = manipulator_.getName() + "_link_base";
     marker.header.stamp = ros::Time::now();
@@ -68,7 +69,8 @@ void Controller::run()
         {
             marker.id = i;
             marker.scale.x = marker.scale.y = 0.02;
-            marker.color.g = marker.color.a = 1.0;
+            marker.color.g = marker.color.r = marker.color.a = 1.0;
+            marker.color.b = 0.0;
             marker.ns = "path";
             marker.header.frame_id = manipulator_.getName() + "_link_base";
             marker.header.stamp = ros::Time::now();
@@ -83,14 +85,22 @@ void Controller::run()
 
             marker_pub_.publish(marker);
         }
-        ROS_INFO("%sObtaining joint angles...", CYAN);
+        ROS_INFO_STREAM(CYAN << "Obtaining joint angles for " << solution.getStateCount() << " states...");
         
-        this->sendAction(this->getJointGoal(solution));
+        trajectory_msgs::JointTrajectory traj = this->getJointGoal(solution);
+        this->sendAction(traj);
         this->closeGripper();
         solved_ = true;
 
-        //TODO use OMPL to return to home
-        this->goToInit();
+        traj.points.pop_back();
+        std::reverse(traj.points.begin(), traj.points.end());
+        trajectory_msgs::JointTrajectoryPoint point;
+        point.velocities = std::vector<double>(7, 0);
+        point.positions = manipulator_.getInitPose();
+        traj.points.push_back(point);
+        
+        for (size_t i = 0; i < traj.points.size(); i++) { traj.points[i].time_from_start = ros::Duration(5.0+(i*2)); }
+        this->sendAction(traj);
         ros::shutdown();
     }
 }

@@ -14,6 +14,8 @@
   <arg name="use_trajectory_controller" default="true"/>
   <arg name="is7dof" default="true"/>
 
+  <!-- put relevant parameters up on the parameter server -->
+  <rosparam command="load"  file="$(find planner)/params/params.yaml" />
   <param name="robot_name"  type="string"   value="$(arg kinova_robotName)" />
   
   <!-- We resume the logic in empty_world.launch, changing only the name of the world to be launched -->

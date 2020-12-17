@@ -175,6 +175,14 @@ Visualization Manager:
         {}
       Queue Size: 100
       Value: true
+    - Class: rviz/Marker
+      Enabled: true
+      Marker Topic: /geometries_markers
+      Name: Collision Geometries
+      Namespaces:
+        geometries: true
+      Queue Size: 100
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
@@ -203,25 +211,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 1.2023826837539673
+      Distance: 1.6085922718048096
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: -0.699610710144043
-        Y: -0.8116565346717834
-        Z: 0.9778088927268982
+        X: -0.1291566640138626
+        Y: -0.2927594482898712
+        Z: 0.7241324782371521
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.36039841175079346
+      Pitch: 0.8153979778289795
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 4.933526039123535
+      Yaw: 5.768545150756836
     Saved: ~
 Window Geometry:
   Displays:
@@ -239,5 +247,5 @@ Window Geometry:
   Views:
     collapsed: true
   Width: 1200
-  X: 1747
-  Y: 88
+  X: 273
+  Y: 79
