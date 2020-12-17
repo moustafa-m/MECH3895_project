@@ -64,7 +64,7 @@ void Controller::run()
     
     if (solution.check())
     {
-        planner_.savePath(solution);
+        planner_.savePath();
         for (size_t i = 0; i < solution.getStateCount(); i++)
         {
             marker.id = i;
