@@ -139,17 +139,22 @@ void Planner::savePath()
         }
     }
 
-    s += ss.str() + ".txt";
+    std::string pathtxt = s + ss.str() + ".txt";
+    std::string statstxt = s + ss.str() + "_stats.txt";
     
     std::cout << GREEN << "Saving solution path to paths/" << name_ << "/" << ss.str() << ".txt\n" <<
             "Run Python or Bash scripts in paths/ to visualise" << std::endl;
     
-    std::ofstream file;
-    file.open(s, std::fstream::out);
-    path.printAsMatrix(file);
-    file << "Time: " << plan_time_/1000.0 << "\tLength: " << path.length() << "\tCost: " << path.cost(pdef_->getOptimizationObjective());
-    file.flush();
-    file.close();
+    std::ofstream path_file, stats_file;
+    path_file.open(pathtxt, std::fstream::out);
+    path.printAsMatrix(path_file);
+    path_file.flush();
+    path_file.close();
+
+    stats_file.open(statstxt, std::fstream::out);
+    stats_file << plan_time_/1000.0 << "\t" << path.length() << "\t" << path.cost(pdef_->getOptimizationObjective());
+    stats_file.flush();
+    stats_file.close();
 
     std::string dir = ros::package::getPath("planner") + "/paths";
     std::string cmd = "cd " + dir + "&& ./plot.sh -f " + name_ + "/" + ss.str() + ".txt";
