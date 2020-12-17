@@ -3,6 +3,7 @@
 #include <fstream>
 #include <ros/package.h>
 #include <eigen3/Eigen/Geometry>
+#include <boost/filesystem.hpp>
 
 #include <ompl/base/SpaceInformation.h>
 #include <ompl/base/objectives/PathLengthOptimizationObjective.h>
@@ -36,10 +37,13 @@ public:
     void setGoal(const Eigen::Vector3d& goal, const std::string& obj_name);
     void setCollisionGeometries(const std::vector<util::CollisionGeometry>& collision_boxes);
     void setManipulatorName(const std::string& name);
-    void savePath(const og::PathGeometric& path);
+    void savePath();
 
 private:
     void init();
+
+    std::string name_;
+    double plan_time_;
 
     std::vector<util::CollisionGeometry> collision_boxes_;
     std::string target_name_;
