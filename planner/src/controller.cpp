@@ -58,7 +58,8 @@ void Controller::run()
     
     planner_.setCollisionGeometries(collision_geometries_);
     planner_.setManipulatorName(manipulator_.getName());
-    planner_.setStart(start_pose.first.back(), start_pose.second.back()); planner_.setGoal(goal, target_);
+    planner_.setStart(start_pose.first.back(), start_pose.second.back());
+    planner_.setGoal(goal, start_pose.second.back(), target_);
     
     og::PathGeometric solution = planner_.plan();
     
@@ -130,10 +131,10 @@ trajectory_msgs::JointTrajectory Controller::getJointGoal(og::PathGeometric& pat
                 path_states[i]->as<ob::SE3StateSpace::StateType>()->getZ();
 
         Eigen::Quaterniond orientation;
-        orientation.coeffs() << path_states[i]->as<ob::SO3StateSpace::StateType>()->x,
-                    path_states[i]->as<ob::SO3StateSpace::StateType>()->y,
-                    path_states[i]->as<ob::SO3StateSpace::StateType>()->z,
-                    path_states[i]->as<ob::SO3StateSpace::StateType>()->w;
+        orientation.w() = path_states[i]->as<ob::SE3StateSpace::StateType>()->rotation().w;
+        orientation.x() = path_states[i]->as<ob::SE3StateSpace::StateType>()->rotation().x;
+        orientation.y() = path_states[i]->as<ob::SE3StateSpace::StateType>()->rotation().y;
+        orientation.z() = path_states[i]->as<ob::SE3StateSpace::StateType>()->rotation().z;
 
         std::vector<double> angles;
         if (i == 0) { angles = manipulator_.solveIK(position, orientation, manipulator_.getInitPose()); }
