@@ -160,33 +160,6 @@ trajectory_msgs::JointTrajectory Controller::getJointGoal(og::PathGeometric& pat
     return msg;
 }
 
-trajectory_msgs::JointTrajectory Controller::getGripperGoal(og::PathGeometric& path)
-{
-    //TODO: This function is unnecessary, should be replaced, changed, or removed
-    std::vector<ob::State*> path_states = path.getStates();
-
-    int num_joints = manipulator_.getNumJoints();
-    trajectory_msgs::JointTrajectory msg;
-    msg.joint_names.resize(3);
-    msg.points.resize(1);
-
-    msg.joint_names = manipulator_.getFingerNames();
-
-    msg.points[0].positions.resize(3);
-    msg.points[0].effort.resize(3);
-    msg.points[0].velocities.resize(3);
-    msg.points[0].accelerations.resize(3);
-    
-    msg.points[0].positions = {0.95, 0.95, 0.95};
-    msg.points[0].effort = {5, 5, 5};
-    msg.points[0].velocities = {0, 0, 0};
-    msg.points[0].accelerations = {0, 0, 0};
-    
-    msg.points[0].time_from_start = ros::Duration(2);
-
-    return msg;
-}
-
 void Controller::goToHome()
 {
     ROS_INFO("%sMoving to home position...", CYAN);
