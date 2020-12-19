@@ -24,8 +24,8 @@ public:
     Manipulator(ros::NodeHandle* nh);
     ~Manipulator();
 
-    std::vector<double> solveIK(Eigen::Vector3d position, Eigen::Quaterniond orientation, std::vector<double> prev_joints);
-    std::pair<std::vector<Eigen::Vector3d>, std::vector<Eigen::Quaterniond>> solveFK(const std::vector<double>& joints_pos = {});
+    bool solveIK(std::vector<double>& output, const Eigen::Vector3d& position, const Eigen::Quaterniond& orientation, const std::vector<double>& prev_joints);
+    bool solveFK(std::vector<Eigen::Vector3d>& positions, std::vector<Eigen::Quaterniond>& orientations, const std::vector<double>& joints_pos = {});
     std::string getName();
     int getNumJoints();
     std::vector<std::string> getJointNames();

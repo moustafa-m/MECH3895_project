@@ -53,13 +53,13 @@ void Controller::run()
     marker_pub_.publish(marker);
     // <----
     
-    std::pair<std::vector<Eigen::Vector3d>, std::vector<Eigen::Quaterniond>> start_pose;
-    start_pose = manipulator_.solveFK();
+    std::vector<Eigen::Vector3d> positions; std::vector<Eigen::Quaterniond> orientations;
+    manipulator_.solveFK(positions, orientations);
     
     planner_.setCollisionGeometries(collision_geometries_);
     planner_.setManipulatorName(manipulator_.getName());
-    planner_.setStart(start_pose.first.back(), start_pose.second.back());
-    planner_.setGoal(goal, start_pose.second.back(), target_);
+    planner_.setStart(positions.back(), orientations.back());
+    planner_.setGoal(goal, orientations.back(), target_);
     
     og::PathGeometric solution = planner_.plan();
     
@@ -125,7 +125,7 @@ trajectory_msgs::JointTrajectory Controller::getJointGoal(og::PathGeometric& pat
         msg.points[i].velocities.resize(num_joints);
         msg.points[i].accelerations.resize(num_joints);
 
-        Eigen::Vector3d position, prev_pos;
+        Eigen::Vector3d position;
         position << path_states[i]->as<ob::SE3StateSpace::StateType>()->getX(),
                 path_states[i]->as<ob::SE3StateSpace::StateType>()->getY(),
                 path_states[i]->as<ob::SE3StateSpace::StateType>()->getZ();
@@ -137,14 +137,8 @@ trajectory_msgs::JointTrajectory Controller::getJointGoal(og::PathGeometric& pat
         orientation.z() = path_states[i]->as<ob::SE3StateSpace::StateType>()->rotation().z;
 
         std::vector<double> angles;
-        if (i == 0) { angles = manipulator_.solveIK(position, orientation, manipulator_.getInitPose()); }
-        else { angles = manipulator_.solveIK(position, orientation, msg.points[i-1].positions); }
-
-        if (angles.empty())
-        {
-            ROS_ERROR("No angles obtained from IK!");
-            exit(-1);
-        }
+        if (i == 0) { manipulator_.solveIK(angles, position, orientation, manipulator_.getInitPose()); }
+        else { manipulator_.solveIK(angles, position, orientation, msg.points[i-1].positions); }
 
         msg.points[i].positions = angles;
         for (int j = 0; j < num_joints; j++)
