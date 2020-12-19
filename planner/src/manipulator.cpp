@@ -35,55 +35,44 @@ std::vector<double> Manipulator::solveIK(Eigen::Vector3d position, Eigen::Quater
     #endif
 
     KDL::JntArray current_states(num_joints_), out(num_joints_);
-    for (int i = 0; i < num_joints_; i++) { current_states(i) = joint_states_.position[i]; }
-
-    KDL::Frame end_effector_pose;
-    fk_solver_->JntToCart(current_states, end_effector_pose);
-    
-    double r, p, y;
-    end_effector_pose.M.GetRPY(r, p, y);
+    for (int i = 0; i < num_joints_; i++) { current_states(i) = prev_joints[i]; }
 
     #ifdef DEBUG
-    std::cout << MAGENTA << "-----\n[DEBUG]\n-----\nEnd effector current Pose: \nPos: {" << end_effector_pose.p[0]
-            << ", " << end_effector_pose.p[1] << ", " << end_effector_pose.p[2] <<
-            "}\n" << "RPY: {" << r << ", " << p << ", " << y << "}\n-----" << NC << std::endl;
+    double r, p, y;
+    
+    std::pair<std::vector<Eigen::Vector3d>, std::vector<Eigen::Quaterniond>> prev_pose;
+    prev_pose = this->solveFK(prev_joints);
+    KDL::Rotation m = KDL::Rotation::Quaternion(prev_pose.second.back().x(), prev_pose.second.back().y(), prev_pose.second.back().z(),
+                prev_pose.second.back().w());
+    m.GetRPY(r, p, y);
+
+    std::cout << MAGENTA << "-----\n[DEBUG]\n-----\nEnd effector prev Pose: \nPos: {" << prev_pose.first.back().x()
+            << ", " << prev_pose.first.back().y() << ", " << prev_pose.first.back().z() <<
+            "}\nRPY: {" << r << ", " << p << ", " << y << "}\n-----" << NC << std::endl;
     #endif
 
-    //TODO: Add orientation from OMPL path
-    // end_effector_pose.M = KDL::Rotation::RPY(-M_PI_2, 0.0, M_PI_2);
-    end_effector_pose.M = KDL::Rotation::Quaternion(-0.5, -0.5, 0.5, 0.5);
-    end_effector_pose.M.GetRPY(r, p, y);
+    KDL::Frame end_effector_pose;
+    end_effector_pose.M = KDL::Rotation::Quaternion(orientation.x(), orientation.y(), orientation.z(), orientation.w());
     end_effector_pose.p[0] = position[0]; end_effector_pose.p[1] = position[1]; end_effector_pose.p[2] = position[2];
     
     #ifdef DEBUG
+    end_effector_pose.M.GetRPY(r, p, y);
     std::cout << MAGENTA << "[DEBUG]\n-----\nEnd Effector desired Pose: \n" << "Pos: {" << end_effector_pose.p[0]
             << ", " << end_effector_pose.p[1] << ", " << end_effector_pose.p[2] << "}\nRPY: {" << r << ", "
             << p << ", " << y << "}\n-----" << NC << std::endl;
     #endif
 
-    for (int i = 0; i < num_joints_; i++)
-    {
-        current_states(i) = prev_joints[i];
-    }
     int success = ik_solver_->CartToJnt(current_states, end_effector_pose, out);
 
     if (success < 0)
     {
         ROS_ERROR_STREAM("Failed to obtain IK solution!\nFailed for state:\n"<< "Pos: {" << end_effector_pose.p[0]
-            << ", " << end_effector_pose.p[1] << ", " << end_effector_pose.p[2] << "}\nRPY: {" << r << ", "
-            << p << ", " << y << "}\n-----" << NC << std::endl);
-        exit(-1);
+            << ", " << position[0] << ", " << position[1] << "}\nQuaternion: {" << position[2] << ", "
+            << orientation.y() << ", " << orientation.z() << ", " << orientation.w() << "}\n-----" << NC << std::endl);
     }
 
-    ROS_INFO("%sIK solution found!", GREEN);
-    
     std::vector<double> output(num_joints_);
-    std::cout << GREEN << "Obtained angles: {";
-    for (int i = 0; i < num_joints_; i++) {
-        output[i] = out(i);
-        std::cout << output[i] << " ";
-    }
-    std::cout << "}" << NC << std::endl;
+    for (int i = 0; i < num_joints_; i++) { output[i] = out(i); }
 
     return output;
 }
