@@ -88,25 +88,40 @@ std::vector<double> Manipulator::solveIK(Eigen::Vector3d position, Eigen::Quater
     return output;
 }
 
-std::pair<Eigen::Vector3d, Eigen::Quaterniond> Manipulator::solveFK()
+std::pair<std::vector<Eigen::Vector3d>, std::vector<Eigen::Quaterniond>> Manipulator::solveFK(const std::vector<double>& joints_pos)
 {
     KDL::JntArray current_states(num_joints_);
-    for (int i = 0; i < num_joints_; i++) { current_states(i) = joint_states_.position[i]; }
+    if (joints_pos.empty())
+    {
+        for (int i = 0; i < num_joints_; i++) { current_states(i) = joint_states_.position[i]; }
+    }
+    else
+    {
+        assert(joints_pos.size() == num_joints_ && "Number of joints in joint_states must be equal to number of joints in the manipulator!");
+        for (int i = 0; i < num_joints_; i++) { current_states(i) = joints_pos[i]; }
+    }
 
+    std::vector<KDL::Frame> poses;
+    poses.resize(chain_.getNrOfSegments());
     KDL::Frame end_effector_pose;
-    fk_solver_->JntToCart(current_states, end_effector_pose);
-    Eigen::Vector3d position; Eigen::Quaterniond quat;
-    position[0] = end_effector_pose.p[0]; 
-    position[1] = end_effector_pose.p[1];
-    position[2] = end_effector_pose.p[2];
+    fk_solver_->JntToCart(current_states, poses);
 
-    end_effector_pose.M.GetQuaternion(quat.x(), quat.y(), quat.z(), quat.w());
+    std::vector<Eigen::Vector3d> positions; std::vector<Eigen::Quaterniond> quaternions;
+    positions.resize(num_joints_); quaternions.resize(num_joints_);
+    for (int i = 0; i < positions.size(); i++)
+    {
+        // FK solver gives root pose at i = 0 which is not needed, so use i+1
+        positions[i] << poses[i+1].p[0],
+                poses[i+1].p[1],
+                poses[i+1].p[2];
+        poses[i+1].M.GetQuaternion(quaternions[i].x(), quaternions[i].y(), quaternions[i].z(), quaternions[i].w());
+    }
 
     #ifdef DEBUG
-    std::cout << MAGENTA << "-----\n[DEBUG]\n-----\nend effector position:\n" << position << "\nend effector orientation:\n"
-            << quat.coeffs() << "\n------" << NC << std::endl;
+    std::cout << MAGENTA << "-----\n[DEBUG]\n-----\nend effector position:\n" << positions.back() << "\nend effector orientation:\n"
+            << quaternions.back().coeffs() << "\n------" << NC << std::endl;
     #endif
-    return std::make_pair(position, quat);
+    return std::make_pair(positions, quaternions);
 }
 
 std::string Manipulator::getName()

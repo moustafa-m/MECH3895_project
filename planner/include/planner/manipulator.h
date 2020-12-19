@@ -25,7 +25,7 @@ public:
     ~Manipulator();
 
     std::vector<double> solveIK(Eigen::Vector3d position, Eigen::Quaterniond orientation, std::vector<double> prev_joints);
-    std::pair<Eigen::Vector3d, Eigen::Quaterniond> solveFK();
+    std::pair<std::vector<Eigen::Vector3d>, std::vector<Eigen::Quaterniond>> solveFK(const std::vector<double>& joints_pos = {});
     std::string getName();
     int getNumJoints();
     std::vector<std::string> getJointNames();

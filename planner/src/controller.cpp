@@ -53,12 +53,12 @@ void Controller::run()
     marker_pub_.publish(marker);
     // <----
     
-    std::pair<Eigen::Vector3d, Eigen::Quaterniond> start_pose;
+    std::pair<std::vector<Eigen::Vector3d>, std::vector<Eigen::Quaterniond>> start_pose;
     start_pose = manipulator_.solveFK();
     
     planner_.setCollisionGeometries(collision_geometries_);
     planner_.setManipulatorName(manipulator_.getName());
-    planner_.setStart(start_pose.first, start_pose.second); planner_.setGoal(goal, target_);
+    planner_.setStart(start_pose.first.back(), start_pose.second.back()); planner_.setGoal(goal, target_);
     
     og::PathGeometric solution = planner_.plan();
     
