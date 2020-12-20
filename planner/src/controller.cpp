@@ -175,7 +175,6 @@ void Controller::goToHome()
     ROS_INFO("%sMoving to home position...", CYAN);
     trajectory_msgs::JointTrajectory joints_msg;
     joints_msg.header.seq += 1;
-    joints_msg.header.stamp = ros::Time::now();
 
     // joints
     joints_msg.points.resize(1);
@@ -184,7 +183,9 @@ void Controller::goToHome()
 
     joints_msg.joint_names = manipulator_.getJointNames();
     joints_msg.points[0].positions = manipulator_.getHomePose();
-    joints_msg.points[0].time_from_start = ros::Duration(5);
+    joints_msg.points[0].time_from_start = ros::Duration(10);
+
+    joints_msg.header.stamp = ros::Time::now();
 
     this->sendAction(joints_msg);
     ROS_INFO("%sDone, Kinova is at home position!", GREEN);
@@ -195,18 +196,15 @@ void Controller::goToInit()
     ROS_INFO("%sMoving to init position...", CYAN);
     trajectory_msgs::JointTrajectory joints_msg;
     joints_msg.header.seq += 1;
-    joints_msg.header.stamp = ros::Time::now();
 
     // joints
     joints_msg.points.resize(1); 
     joints_msg.joint_names.resize(manipulator_.getNumJoints());
     joints_msg.points[0].positions.resize(manipulator_.getNumJoints());
-    joints_msg.points[0].effort.resize(manipulator_.getNumJoints());
 
     joints_msg.joint_names = manipulator_.getJointNames();    
     joints_msg.points[0].positions = manipulator_.getInitPose();
-    for (int i = 0; i < manipulator_.getNumJoints(); i++) { joints_msg.points[0].effort[i] = 1000; }
-    joints_msg.points[0].time_from_start = ros::Duration(5);
+    joints_msg.points[0].time_from_start = ros::Duration(10);
 
     joints_msg.header.stamp = ros::Time::now();
 
