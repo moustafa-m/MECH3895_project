@@ -24,7 +24,6 @@ public:
 
     void run();
     trajectory_msgs::JointTrajectory getJointGoal(og::PathGeometric& path);
-    trajectory_msgs::JointTrajectory getGripperGoal(og::PathGeometric& path);
     void goToHome();
     void goToInit();
     void setTargetName(std::string target);
