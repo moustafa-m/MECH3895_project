@@ -69,20 +69,35 @@ void Controller::run()
         for (size_t i = 0; i < solution.getStateCount(); i++)
         {
             marker.id = i;
-            marker.scale.x = marker.scale.y = 0.02;
+            marker.action = visualization_msgs::Marker::ADD;
+            marker.type = visualization_msgs::Marker::ARROW;
+            marker.scale.x = 0.05, marker.scale.y = 0.01, marker.scale.z = 0.03;
             marker.color.g = marker.color.r = marker.color.a = 1.0;
             marker.color.b = 0.0;
             marker.ns = "path";
             marker.header.frame_id = manipulator_.getName() + "_link_base";
             marker.header.stamp = ros::Time::now();
+
             geometry_msgs::Point p;
             p.x = solution.getStates()[i]->as<ob::SE3StateSpace::StateType>()->getX();
             p.y = solution.getStates()[i]->as<ob::SE3StateSpace::StateType>()->getY();
             p.z = solution.getStates()[i]->as<ob::SE3StateSpace::StateType>()->getZ();
-            marker.points.push_back(p);
+            marker.pose.position = p;
 
-            marker.action = visualization_msgs::Marker::ADD;
-            marker.type = visualization_msgs::Marker::POINTS;
+            Eigen::Quaterniond quat;
+            quat.w() = solution.getStates()[i]->as<ob::SE3StateSpace::StateType>()->rotation().w;
+            quat.x() = solution.getStates()[i]->as<ob::SE3StateSpace::StateType>()->rotation().x;
+            quat.y() = solution.getStates()[i]->as<ob::SE3StateSpace::StateType>()->rotation().y;
+            quat.z() = solution.getStates()[i]->as<ob::SE3StateSpace::StateType>()->rotation().z;
+            // arrow is parallel to x-axis when rotation is identity but kinova end effector is parallel
+            // to z-axis when at identity, so transform is needed
+            quat = quat * Eigen::AngleAxisd(-M_PI/2, Eigen::Vector3d::UnitY());
+
+            marker.pose.orientation.w = quat.w();
+            marker.pose.orientation.x = quat.x();
+            marker.pose.orientation.y = quat.y();
+            marker.pose.orientation.z = quat.z();
+            marker.points.resize(0);
 
             marker_pub_.publish(marker);
         }
