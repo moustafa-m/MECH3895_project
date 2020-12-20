@@ -22,7 +22,8 @@ Manipulator::~Manipulator()
     delete fk_solver_;
 }
 
-std::vector<double> Manipulator::solveIK(Eigen::Vector3d position, Eigen::Quaterniond orientation, std::vector<double> prev_joints)
+bool Manipulator::solveIK(std::vector<double>& output, const Eigen::Vector3d& position, const Eigen::Quaterniond& orientation,
+    const std::vector<double>& prev_joints)
 {
     #ifdef DEBUG
     std::cout << MAGENTA << "-----\n[DEBUG]\nCurrent angles: {";
@@ -35,78 +36,85 @@ std::vector<double> Manipulator::solveIK(Eigen::Vector3d position, Eigen::Quater
     #endif
 
     KDL::JntArray current_states(num_joints_), out(num_joints_);
-    for (int i = 0; i < num_joints_; i++) { current_states(i) = joint_states_.position[i]; }
-
-    KDL::Frame end_effector_pose;
-    fk_solver_->JntToCart(current_states, end_effector_pose);
-    
-    double r, p, y;
-    end_effector_pose.M.GetRPY(r, p, y);
+    for (int i = 0; i < num_joints_; i++) { current_states(i) = prev_joints[i]; }
 
     #ifdef DEBUG
-    std::cout << MAGENTA << "-----\n[DEBUG]\n-----\nEnd effector current Pose: \nPos: {" << end_effector_pose.p[0]
-            << ", " << end_effector_pose.p[1] << ", " << end_effector_pose.p[2] <<
-            "}\n" << "RPY: {" << r << ", " << p << ", " << y << "}\n-----" << NC << std::endl;
+    double r, p, y;
+    
+    std::vector<Eigen::Vector3d> prev_pos; std::vector<Eigen::Quaterniond> prev_orients;
+    this->solveFK(prev_pos, prev_orients, prev_joints);
+    KDL::Rotation m = KDL::Rotation::Quaternion(prev_orients.back().x(), prev_orients.back().y(), prev_orients.back().z(),
+                prev_orients.back().w());
+    m.GetRPY(r, p, y);
+
+    std::cout << MAGENTA << "-----\n[DEBUG]\n-----\nEnd effector prev Pose: \nPos: {" << prev_pos.back().x()
+            << ", " << prev_pos.back().y() << ", " << prev_pos.back().z() <<
+            "}\nRPY: {" << r << ", " << p << ", " << y << "}\n-----" << NC << std::endl;
     #endif
 
-    //TODO: Add orientation from OMPL path
-    // end_effector_pose.M = KDL::Rotation::RPY(-M_PI_2, 0.0, M_PI_2);
-    end_effector_pose.M = KDL::Rotation::Quaternion(-0.5, -0.5, 0.5, 0.5);
-    end_effector_pose.M.GetRPY(r, p, y);
+    KDL::Frame end_effector_pose;
+    end_effector_pose.M = KDL::Rotation::Quaternion(orientation.x(), orientation.y(), orientation.z(), orientation.w());
     end_effector_pose.p[0] = position[0]; end_effector_pose.p[1] = position[1]; end_effector_pose.p[2] = position[2];
     
     #ifdef DEBUG
+    end_effector_pose.M.GetRPY(r, p, y);
     std::cout << MAGENTA << "[DEBUG]\n-----\nEnd Effector desired Pose: \n" << "Pos: {" << end_effector_pose.p[0]
             << ", " << end_effector_pose.p[1] << ", " << end_effector_pose.p[2] << "}\nRPY: {" << r << ", "
             << p << ", " << y << "}\n-----" << NC << std::endl;
     #endif
 
-    for (int i = 0; i < num_joints_; i++)
-    {
-        current_states(i) = prev_joints[i];
-    }
     int success = ik_solver_->CartToJnt(current_states, end_effector_pose, out);
 
     if (success < 0)
     {
-        ROS_ERROR_STREAM("Failed to obtain IK solution!\nFailed for state:\n"<< "Pos: {" << end_effector_pose.p[0]
-            << ", " << end_effector_pose.p[1] << ", " << end_effector_pose.p[2] << "}\nRPY: {" << r << ", "
-            << p << ", " << y << "}\n-----" << NC << std::endl);
-        exit(-1);
+        #ifdef DEBUG
+        std::cout << MAGENTA << "[DEBUG]\n-----\nFailed to obtain IK solution!\nFailed for state:\n"<< "Pos: {" << end_effector_pose.p[0]
+            << ", " << position[0] << ", " << position[1] << "}\nQuaternion: {" << position[2] << ", "
+            << orientation.y() << ", " << orientation.z() << ", " << orientation.w() << "}\n-----" << NC << std::endl;
+        #endif
+        return false;
     }
 
-    ROS_INFO("%sIK solution found!", GREEN);
-    
-    std::vector<double> output(num_joints_);
-    std::cout << GREEN << "Obtained angles: {";
-    for (int i = 0; i < num_joints_; i++) {
-        output[i] = out(i);
-        std::cout << output[i] << " ";
-    }
-    std::cout << "}" << NC << std::endl;
+    output.resize(num_joints_);
+    for (int i = 0; i < num_joints_; i++) { output[i] = out(i); }
 
-    return output;
+    return true;
 }
 
-std::pair<Eigen::Vector3d, Eigen::Quaterniond> Manipulator::solveFK()
+bool Manipulator::solveFK(std::vector<Eigen::Vector3d>& positions, std::vector<Eigen::Quaterniond>& orientations, const std::vector<double>& joints_pos)
 {
     KDL::JntArray current_states(num_joints_);
-    for (int i = 0; i < num_joints_; i++) { current_states(i) = joint_states_.position[i]; }
+    if (joints_pos.empty())
+    {
+        for (int i = 0; i < num_joints_; i++) { current_states(i) = joint_states_.position[i]; }
+    }
+    else
+    {
+        assert(joints_pos.size() == num_joints_ && "Number of joints in joint_states must be equal to number of joints in the manipulator!");
+        for (int i = 0; i < num_joints_; i++) { current_states(i) = joints_pos[i]; }
+    }
 
-    KDL::Frame end_effector_pose;
-    fk_solver_->JntToCart(current_states, end_effector_pose);
-    Eigen::Vector3d position; Eigen::Quaterniond quat;
-    position[0] = end_effector_pose.p[0]; 
-    position[1] = end_effector_pose.p[1];
-    position[2] = end_effector_pose.p[2];
+    std::vector<KDL::Frame> poses;
+    poses.resize(chain_.getNrOfSegments());
+    int success = fk_solver_->JntToCart(current_states, poses);
 
-    end_effector_pose.M.GetQuaternion(quat.x(), quat.y(), quat.z(), quat.w());
+    if (success < 0) return false;
+    
+    positions.resize(num_joints_); orientations.resize(num_joints_);
+    for (int i = 0; i < positions.size(); i++)
+    {
+        // FK solver gives root pose at i = 0 which is not needed, so use i+1
+        positions[i] << poses[i+1].p[0],
+                poses[i+1].p[1],
+                poses[i+1].p[2];
+        poses[i+1].M.GetQuaternion(orientations[i].x(), orientations[i].y(), orientations[i].z(), orientations[i].w());
+    }
 
     #ifdef DEBUG
-    std::cout << MAGENTA << "-----\n[DEBUG]\n-----\nend effector position:\n" << position << "\nend effector orientation:\n"
-            << quat.coeffs() << "\n------" << NC << std::endl;
+    std::cout << MAGENTA << "-----\n[DEBUG]\n-----\nend effector position:\n" << positions.back() << "\nend effector orientation:\n"
+            << orientations.back().coeffs() << "\n------" << NC << std::endl;
     #endif
-    return std::make_pair(position, quat);
+    return true;
 }
 
 std::string Manipulator::getName()

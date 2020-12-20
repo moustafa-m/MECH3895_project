@@ -72,42 +72,40 @@ void Planner::setStart(const Eigen::Vector3d& start, const Eigen::Quaterniond& o
 {
     ob::ScopedState<ob::SE3StateSpace> start_state(space_);
     start_state->setXYZ(start[0], start[1], start[2]);
-    start_state->as<ob::SO3StateSpace::StateType>(1)->x = orientation.x();
-    start_state->as<ob::SO3StateSpace::StateType>(1)->y = orientation.y();
-    start_state->as<ob::SO3StateSpace::StateType>(1)->z = orientation.z();
-    start_state->as<ob::SO3StateSpace::StateType>(1)->w = orientation.w();
+    start_state->rotation().x = orientation.x();
+    start_state->rotation().y = orientation.y();
+    start_state->rotation().z = orientation.z();
+    start_state->rotation().w = orientation.w();
     pdef_->clearStartStates();
     pdef_->addStartState(start_state);
 
     #ifdef DEBUG
     std::cout << MAGENTA << "[DEBUG] Start: {" << start_state->getX() << ", " << start_state->getY() << ", " 
-            << start_state->getZ() << "} {" << start_state->as<ob::SO3StateSpace::StateType>(1)->x << ", "
-            << start_state->as<ob::SO3StateSpace::StateType>(1)->y << ", "
-            << start_state->as<ob::SO3StateSpace::StateType>(1)->z << ", "
-            << start_state->as<ob::SO3StateSpace::StateType>(1)->w << "}" << std::endl;
+            << start_state->getZ() << "} {" << start_state->rotation().x << ", "
+            << start_state->rotation().y << ", "
+            << start_state->rotation().z << ", "
+            << start_state->rotation().w << "}" << std::endl;
     #endif
 }
 
-void Planner::setGoal(const Eigen::Vector3d& goal, const std::string& obj_name)
+void Planner::setGoal(const Eigen::Vector3d& goal, const Eigen::Quaterniond& orientation, const std::string& obj_name)
 {
     target_name_ = obj_name;
     ob::ScopedState<ob::SE3StateSpace> goal_state(space_);
     goal_state->setXYZ(goal[0], goal[1], goal[2]);
-    //TODO: implement some method to determine desired orientation
-    // goal_state->as<ob::SO3StateSpace::StateType>(1)->x = -0.5;
-    // goal_state->as<ob::SO3StateSpace::StateType>(1)->y = 0.5;
-    // goal_state->as<ob::SO3StateSpace::StateType>(1)->z = 0.5;
-    // goal_state->as<ob::SO3StateSpace::StateType>(1)->w = 0.5;
-    goal_state->as<ob::SO3StateSpace::StateType>(1)->setIdentity();
+    goal_state->rotation().x = orientation.x();
+    goal_state->rotation().y = orientation.y();
+    goal_state->rotation().z = orientation.z();
+    goal_state->rotation().w = orientation.w();
     pdef_->clearGoal();
     pdef_->setGoalState(goal_state);
 
     #ifdef DEBUG
     std::cout << MAGENTA << "[DEBUG] Goal: {" << goal_state->getX() << ", " << goal_state->getY() << ", "
-            << goal_state->getZ() << "} {" << goal_state->as<ob::SO3StateSpace::StateType>(1)->x << ", "
-            << goal_state->as<ob::SO3StateSpace::StateType>(1)->y << ", "
-            << goal_state->as<ob::SO3StateSpace::StateType>(1)->z << ", "
-            << goal_state->as<ob::SO3StateSpace::StateType>(1)->w << "}" << std::endl;
+            << goal_state->getZ() << "} {" << goal_state->rotation().x << ", "
+            << goal_state->rotation().y << ", "
+            << goal_state->rotation().z << ", "
+            << goal_state->rotation().w << "}" << std::endl;
     #endif
 }
 

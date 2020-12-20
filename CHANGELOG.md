@@ -2,6 +2,21 @@
 
 Noteable/major changes will be listed here
 
+## 20th Dec 2020
+
+### Modified
+
+- OMPL path waypoints are now represented by arrows which point in the same direction of the end effector
+
+## 19th Dec 2020
+
+### Modified
+
+- Manipulator FK solver now returns all joint poses and can take in a set of joint positions (if no input given, it uses current joint positions)
+- Manipulator IK method no longer exits program if it fails
+- Manipulator IK and FK methods return success bool and take in outputs as pass-by-reference arguments
+- OMPL now takes in orientation as an input to setGoal() method
+
 ## 15th Dec 2020
 
 ### Added

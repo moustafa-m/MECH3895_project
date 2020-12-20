@@ -53,12 +53,13 @@ void Controller::run()
     marker_pub_.publish(marker);
     // <----
     
-    std::pair<Eigen::Vector3d, Eigen::Quaterniond> start_pose;
-    start_pose = manipulator_.solveFK();
+    std::vector<Eigen::Vector3d> positions; std::vector<Eigen::Quaterniond> orientations;
+    manipulator_.solveFK(positions, orientations);
     
     planner_.setCollisionGeometries(collision_geometries_);
     planner_.setManipulatorName(manipulator_.getName());
-    planner_.setStart(start_pose.first, start_pose.second); planner_.setGoal(goal, target_);
+    planner_.setStart(positions.back(), orientations.back());
+    planner_.setGoal(goal, orientations.back(), target_);
     
     og::PathGeometric solution = planner_.plan();
     
@@ -68,20 +69,35 @@ void Controller::run()
         for (size_t i = 0; i < solution.getStateCount(); i++)
         {
             marker.id = i;
-            marker.scale.x = marker.scale.y = 0.02;
+            marker.action = visualization_msgs::Marker::ADD;
+            marker.type = visualization_msgs::Marker::ARROW;
+            marker.scale.x = 0.05, marker.scale.y = 0.01, marker.scale.z = 0.03;
             marker.color.g = marker.color.r = marker.color.a = 1.0;
             marker.color.b = 0.0;
             marker.ns = "path";
             marker.header.frame_id = manipulator_.getName() + "_link_base";
             marker.header.stamp = ros::Time::now();
+
             geometry_msgs::Point p;
             p.x = solution.getStates()[i]->as<ob::SE3StateSpace::StateType>()->getX();
             p.y = solution.getStates()[i]->as<ob::SE3StateSpace::StateType>()->getY();
             p.z = solution.getStates()[i]->as<ob::SE3StateSpace::StateType>()->getZ();
-            marker.points.push_back(p);
+            marker.pose.position = p;
 
-            marker.action = visualization_msgs::Marker::ADD;
-            marker.type = visualization_msgs::Marker::POINTS;
+            Eigen::Quaterniond quat;
+            quat.w() = solution.getStates()[i]->as<ob::SE3StateSpace::StateType>()->rotation().w;
+            quat.x() = solution.getStates()[i]->as<ob::SE3StateSpace::StateType>()->rotation().x;
+            quat.y() = solution.getStates()[i]->as<ob::SE3StateSpace::StateType>()->rotation().y;
+            quat.z() = solution.getStates()[i]->as<ob::SE3StateSpace::StateType>()->rotation().z;
+            // arrow is parallel to x-axis when rotation is identity but kinova end effector is parallel
+            // to z-axis when at identity, so transform is needed
+            quat = quat * Eigen::AngleAxisd(-M_PI/2, Eigen::Vector3d::UnitY());
+
+            marker.pose.orientation.w = quat.w();
+            marker.pose.orientation.x = quat.x();
+            marker.pose.orientation.y = quat.y();
+            marker.pose.orientation.z = quat.z();
+            marker.points.resize(0);
 
             marker_pub_.publish(marker);
         }
@@ -124,26 +140,20 @@ trajectory_msgs::JointTrajectory Controller::getJointGoal(og::PathGeometric& pat
         msg.points[i].velocities.resize(num_joints);
         msg.points[i].accelerations.resize(num_joints);
 
-        Eigen::Vector3d position, prev_pos;
+        Eigen::Vector3d position;
         position << path_states[i]->as<ob::SE3StateSpace::StateType>()->getX(),
                 path_states[i]->as<ob::SE3StateSpace::StateType>()->getY(),
                 path_states[i]->as<ob::SE3StateSpace::StateType>()->getZ();
 
         Eigen::Quaterniond orientation;
-        orientation.coeffs() << path_states[i]->as<ob::SO3StateSpace::StateType>()->x,
-                    path_states[i]->as<ob::SO3StateSpace::StateType>()->y,
-                    path_states[i]->as<ob::SO3StateSpace::StateType>()->z,
-                    path_states[i]->as<ob::SO3StateSpace::StateType>()->w;
+        orientation.w() = path_states[i]->as<ob::SE3StateSpace::StateType>()->rotation().w;
+        orientation.x() = path_states[i]->as<ob::SE3StateSpace::StateType>()->rotation().x;
+        orientation.y() = path_states[i]->as<ob::SE3StateSpace::StateType>()->rotation().y;
+        orientation.z() = path_states[i]->as<ob::SE3StateSpace::StateType>()->rotation().z;
 
         std::vector<double> angles;
-        if (i == 0) { angles = manipulator_.solveIK(position, orientation, manipulator_.getInitPose()); }
-        else { angles = manipulator_.solveIK(position, orientation, msg.points[i-1].positions); }
-
-        if (angles.empty())
-        {
-            ROS_ERROR("No angles obtained from IK!");
-            exit(-1);
-        }
+        if (i == 0) { manipulator_.solveIK(angles, position, orientation, manipulator_.getInitPose()); }
+        else { manipulator_.solveIK(angles, position, orientation, msg.points[i-1].positions); }
 
         msg.points[i].positions = angles;
         for (int j = 0; j < num_joints; j++)
@@ -160,39 +170,11 @@ trajectory_msgs::JointTrajectory Controller::getJointGoal(og::PathGeometric& pat
     return msg;
 }
 
-trajectory_msgs::JointTrajectory Controller::getGripperGoal(og::PathGeometric& path)
-{
-    //TODO: This function is unnecessary, should be replaced, changed, or removed
-    std::vector<ob::State*> path_states = path.getStates();
-
-    int num_joints = manipulator_.getNumJoints();
-    trajectory_msgs::JointTrajectory msg;
-    msg.joint_names.resize(3);
-    msg.points.resize(1);
-
-    msg.joint_names = manipulator_.getFingerNames();
-
-    msg.points[0].positions.resize(3);
-    msg.points[0].effort.resize(3);
-    msg.points[0].velocities.resize(3);
-    msg.points[0].accelerations.resize(3);
-    
-    msg.points[0].positions = {0.95, 0.95, 0.95};
-    msg.points[0].effort = {5, 5, 5};
-    msg.points[0].velocities = {0, 0, 0};
-    msg.points[0].accelerations = {0, 0, 0};
-    
-    msg.points[0].time_from_start = ros::Duration(2);
-
-    return msg;
-}
-
 void Controller::goToHome()
 {
     ROS_INFO("%sMoving to home position...", CYAN);
     trajectory_msgs::JointTrajectory joints_msg;
     joints_msg.header.seq += 1;
-    joints_msg.header.stamp = ros::Time::now();
 
     // joints
     joints_msg.points.resize(1);
@@ -201,7 +183,9 @@ void Controller::goToHome()
 
     joints_msg.joint_names = manipulator_.getJointNames();
     joints_msg.points[0].positions = manipulator_.getHomePose();
-    joints_msg.points[0].time_from_start = ros::Duration(5);
+    joints_msg.points[0].time_from_start = ros::Duration(10);
+
+    joints_msg.header.stamp = ros::Time::now();
 
     this->sendAction(joints_msg);
     ROS_INFO("%sDone, Kinova is at home position!", GREEN);
@@ -212,18 +196,15 @@ void Controller::goToInit()
     ROS_INFO("%sMoving to init position...", CYAN);
     trajectory_msgs::JointTrajectory joints_msg;
     joints_msg.header.seq += 1;
-    joints_msg.header.stamp = ros::Time::now();
 
     // joints
     joints_msg.points.resize(1); 
     joints_msg.joint_names.resize(manipulator_.getNumJoints());
     joints_msg.points[0].positions.resize(manipulator_.getNumJoints());
-    joints_msg.points[0].effort.resize(manipulator_.getNumJoints());
 
     joints_msg.joint_names = manipulator_.getJointNames();    
     joints_msg.points[0].positions = manipulator_.getInitPose();
-    for (int i = 0; i < manipulator_.getNumJoints(); i++) { joints_msg.points[0].effort[i] = 1000; }
-    joints_msg.points[0].time_from_start = ros::Duration(5);
+    joints_msg.points[0].time_from_start = ros::Duration(10);
 
     joints_msg.header.stamp = ros::Time::now();
 
