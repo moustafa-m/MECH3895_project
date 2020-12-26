@@ -67,11 +67,9 @@ bool Manipulator::solveIK(std::vector<double>& output, const Eigen::Vector3d& po
 
     if (success < 0)
     {
-        #ifdef DEBUG
-        std::cout << MAGENTA << "[DEBUG]\n-----\nFailed to obtain IK solution!\nFailed for state:\n"<< "Pos: {" << end_effector_pose.p[0]
+        ROS_ERROR_STREAM(RED << "-----\nFailed to obtain IK solution!\nFailed for state:\n"<< "Pos: {" << end_effector_pose.p[0]
             << ", " << position[0] << ", " << position[1] << "}\nQuaternion: {" << position[2] << ", "
-            << orientation.y() << ", " << orientation.z() << ", " << orientation.w() << "}\n-----" << NC << std::endl;
-        #endif
+            << orientation.y() << ", " << orientation.z() << ", " << orientation.w() << "}\n-----" << NC << std::endl);
         return false;
     }
 
@@ -166,7 +164,7 @@ void Manipulator::initSolvers()
     std::string chain_start, chain_end;
     chain_start = name_ + "_link_base";
     chain_end = name_ + "_end_effector";
-    ik_solver_ = new TRAC_IK::TRAC_IK(chain_start, chain_end, "/robot_description", 0.5, 1e-3, TRAC_IK::Distance);
+    ik_solver_ = new TRAC_IK::TRAC_IK(chain_start, chain_end, "/robot_description", 0.1, 1e-3, TRAC_IK::Distance);
 
     bool valid = ik_solver_->getKDLChain(chain_);
     if (!valid)

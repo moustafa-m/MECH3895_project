@@ -1,9 +1,8 @@
 #pragma once
 
-#include <trajectory_msgs/JointTrajectory.h>
 #include <control_msgs/FollowJointTrajectoryAction.h>
 #include <gazebo_msgs/ModelStates.h>
-#include <visualization_msgs/Marker.h>
+#include <planner/start_plan.h>
 #include <actionlib_msgs/GoalID.h>
 #include <actionlib/client/action_client.h>
 #include <actionlib/client/simple_action_client.h>
@@ -23,37 +22,33 @@ public:
     ~Controller();
 
     void run();
-    trajectory_msgs::JointTrajectory getJointGoal(og::PathGeometric& path);
+    void sendAction(trajectory_msgs::JointTrajectory joint_traj);
+    void openGripper();
+    void closeGripper();
     void goToHome();
     void goToInit();
-    void setTargetName(std::string target);
     
 private:
     void init();
-    void sendAction(trajectory_msgs::JointTrajectory joint_traj);
     void getCollisionBoxes();
-    void openGripper();
-    void closeGripper();
     void statesCallback(gazebo_msgs::ModelStatesConstPtr msg);
-    bool homeSrvCallback(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);
-    bool initSrvCallback(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);
-    
-    Planner planner_;
+    bool startPlanSrvCallback(planner::start_plan::Request& req, planner::start_plan::Response& res);
+    bool homeSrvCallback(std_srvs::Empty::Request& req, std_srvs::Empty::Response& res);
+    bool initSrvCallback(std_srvs::Empty::Request& req, std_srvs::Empty::Response& res);
+
     Manipulator manipulator_;
+    Planner planner_;
 
     ArmControlPtr armAction_;
     ArmControlPtr gripperAction_;
 
     ros::NodeHandle nh_;
+    ros::Subscriber states_sub_;
+    ros::ServiceServer start_plan_srv;
     ros::ServiceServer home_srv_;
     ros::ServiceServer init_srv_;
-    ros::Publisher marker_pub_;
-    ros::Subscriber states_sub_;
     ros::ServiceClient collisions_client_;
 
     gazebo_msgs::ModelStates states_;
     std::vector<util::CollisionGeometry> collision_geometries_;
-    std::string target_;
-    
-    bool solved_ = false;
 };

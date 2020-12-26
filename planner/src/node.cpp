@@ -4,10 +4,15 @@
 int main(int argc, char** argv)
 {
     ros::init(argc, argv, "planner_node");
-    ros::NodeHandle* nh;
+    ros::NodeHandle nh;
     
-    Planner planner;
-    ros::spin();
+    Controller controller(&nh);
+    ros::Rate rate(10);
+    while (ros::ok())
+    {
+        rate.sleep();
+        ros::spinOnce();
+    }
 
     return EXIT_SUCCESS;
 }
