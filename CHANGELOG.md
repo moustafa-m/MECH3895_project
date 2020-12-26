@@ -2,6 +2,31 @@
 
 Noteable/major changes will be listed here
 
+## 26th Dec 2020
+
+### Added
+
+- start_plan srv that takes in a target name implemented in Controller class, this is the main way to interface with the class and start planning for a given target
+- Manipulator class is now passed to Planner and State Validity via pointer
+- ob::PlannerPtr private member in Planner class
+- Rviz marker publish methods to Planner class
+
+### Modified
+
+- Rviz marker publishing is now handled by the Planner class
+- Planner plan() method returns bool and a trajectory via pass-by-reference
+- Controller openGripper(), closeGripper(), and sendAction() are now public
+- Collision box y-axis dimension for the Kinova finger reduced, it does not encompass the entire finger now. This is to avoid issues in edge cases where there is slight overlap with the box but the finger (a consequence of using a box shape as the collision geometry)
+- State validity uses transforms between end effector and fingers and links to obtain poses of collision geometries
+
+### Removed
+
+- Planner setGoal() no longer needs target name as input
+- Controller run() method
+- Controller setTargetName() method
+- Controller getJointGoal() method
+- Planner setManipulatorName()
+
 ## 20th Dec 2020
 
 ### Modified
