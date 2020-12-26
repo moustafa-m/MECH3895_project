@@ -46,7 +46,7 @@ void GeometriesPlugin::Load(physics::WorldPtr _world, sdf::ElementPtr _sdf)
 
 void GeometriesPlugin::queueThread()
 {
-    ros::Rate rate(5);
+    ros::Rate rate(30);
     while (nh_->ok())
     {
         queue_.callAvailable(ros::WallDuration(0.05));
@@ -66,7 +66,10 @@ void GeometriesPlugin::initKinovaDimensions()
     Vector3 base, shoulder, arm, arm_half_1, arm_half_2, forearm, wrist, wrist_spherical_1, wrist_spherical_2, hand_3finger;
 
     // values are obtained by measuring mesh files in kinova_description package
-    link_finger_1.x = 0.132, link_finger_1.y = 0.025, link_finger_1.z = 0.025;
+    
+    // the finger y dimension is reduced to avoid edge cases due to usage of a box shape
+    // to enclose the finger
+    link_finger_1.x = 0.132, link_finger_1.y = 0.01, link_finger_1.z = 0.025;
     link_finger_2 = link_finger_3 = link_finger_1;
     
     base.x = 0.083, base.y = 0.083, base.z = 0.16;
