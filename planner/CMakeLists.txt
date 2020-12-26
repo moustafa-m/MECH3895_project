@@ -81,35 +81,6 @@ include_directories(
   ${fcl_INCLUDE_DIRS}
 )
 
-## Declare a C++ library
-# add_library(${PROJECT_NAME}
-#   src/${PROJECT_NAME}/simple_traj.cpp
-# )
-
-add_executable(simple_traj_node src/simple_traj_node.cpp)
-add_dependencies(simple_traj_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-target_link_libraries(simple_traj_node
-  ${catkin_LIBRARIES}
-  ${OMPL_LIBRARIES}
-  Eigen3::Eigen
-)
-
-# add_executable(planner_test src/planner.cpp)
-# add_dependencies(planner_test ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-# target_link_libraries(planner_test
-#   ${catkin_LIBRARIES}
-#   ${OMPL_LIBRARIES}
-#   Eigen3::Eigen
-# )
-
-# add_executable(manipulator_test src/manipulator.cpp)
-# add_dependencies(manipulator_test ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-# target_link_libraries(manipulator_test
-#   ${catkin_LIBRARIES}
-#   ${OMPL_LIBRARIES}
-#   Eigen3::Eigen
-# )
-
 add_executable(planner_node src/node.cpp src/controller.cpp src/planner.cpp src/manipulator.cpp)
 add_dependencies(planner_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 target_link_libraries(planner_node
