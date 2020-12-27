@@ -18,6 +18,7 @@ Noteable/major changes will be listed here
 - Controller openGripper(), closeGripper(), and sendAction() are now public
 - Collision box y-axis dimension for the Kinova finger reduced, it does not encompass the entire finger now. This is to avoid issues in edge cases where there is slight overlap with the box but the finger (a consequence of using a box shape as the collision geometry)
 - State validity uses transforms between end effector and fingers and links to obtain poses of collision geometries
+- IK solver timeout reduced to 0.1 seconds
 
 ### Removed
 
