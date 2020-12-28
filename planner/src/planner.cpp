@@ -14,7 +14,7 @@ Planner::~Planner()
 
 bool Planner::plan(trajectory_msgs::JointTrajectory& traj)
 {
-    planner_ = ob::PlannerPtr(new og::BFMT(si_));
+    planner_->clear();
     planner_->setProblemDefinition(pdef_);
     planner_->setup();
 
@@ -97,6 +97,7 @@ void Planner::setGoal(const Eigen::Vector3d& goal, const Eigen::Quaterniond& ori
     goal_state->rotation().z = orientation.z();
     goal_state->rotation().w = orientation.w();
     pdef_->clearGoal();
+    pdef_->clearSolutionPaths();
     pdef_->setGoalState(goal_state);
 
     this->publishGoalMarker(goal);
@@ -184,6 +185,8 @@ void Planner::init()
     // problem definition
     pdef_ = ob::ProblemDefinitionPtr(new ob::ProblemDefinition(si_));
     pdef_->setOptimizationObjective(ob::OptimizationObjectivePtr(new ob::PathLengthOptimizationObjective(si_)));
+
+    planner_ = ob::PlannerPtr(new og::BFMT(si_));
 }
 
 void Planner::initROS()
