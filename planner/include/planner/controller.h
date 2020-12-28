@@ -35,6 +35,8 @@ private:
     bool startPlanSrvCallback(planner::start_plan::Request& req, planner::start_plan::Response& res);
     bool homeSrvCallback(std_srvs::Empty::Request& req, std_srvs::Empty::Response& res);
     bool initSrvCallback(std_srvs::Empty::Request& req, std_srvs::Empty::Response& res);
+    bool openGripperSrvCallback(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);
+    bool closeGripperSrvCallback(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);
 
     Manipulator manipulator_;
     Planner planner_;
@@ -47,6 +49,8 @@ private:
     ros::ServiceServer start_plan_srv;
     ros::ServiceServer home_srv_;
     ros::ServiceServer init_srv_;
+    ros::ServiceServer open_gripper_srv_;
+    ros::ServiceServer close_gripper_srv_;
     ros::ServiceClient collisions_client_;
 
     gazebo_msgs::ModelStates states_;

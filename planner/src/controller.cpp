@@ -112,9 +112,11 @@ void Controller::goToInit()
 void Controller::init()
 {
     states_sub_ = nh_.subscribe("/gazebo/model_states", 10, &Controller::statesCallback, this);
+    start_plan_srv = nh_.advertiseService("start_plan", &Controller::startPlanSrvCallback, this);
     home_srv_ = nh_.advertiseService("go_to_home", &Controller::homeSrvCallback, this);
     init_srv_ = nh_.advertiseService("go_to_init", &Controller::initSrvCallback, this);
-    start_plan_srv = nh_.advertiseService("start_plan", &Controller::startPlanSrvCallback, this);
+    open_gripper_srv_ = nh_.advertiseService("open_gripper", &Controller::openGripperSrvCallback, this);
+    close_gripper_srv_ = nh_.advertiseService("close_gripper", &Controller::closeGripperSrvCallback, this);
     collisions_client_ = nh_.serviceClient<gazebo_geometries_plugin::geometry>("/gazebo/get_geometry");
 
     while (states_sub_.getNumPublishers() == 0 && ros::ok())
@@ -226,6 +228,7 @@ bool Controller::startPlanSrvCallback(planner::start_plan::Request& req, planner
         return true;
     }
 
+    this->openGripper();
     planner_.clearMarkers();
     
     std::vector<Eigen::Vector3d> positions; std::vector<Eigen::Quaterniond> orientations;
@@ -237,13 +240,12 @@ bool Controller::startPlanSrvCallback(planner::start_plan::Request& req, planner
     // q = Eigen::AngleAxisd(-M_PI_2, Eigen::Vector3d::UnitX());
     // goal[0] = -0.00; goal[1] = 0.0; goal[2] = 0.8;
     planner_.setGoal(goal, orientations.back());
-    
+
     trajectory_msgs::JointTrajectory traj;
     if (planner_.plan(traj))
     {
         // planner_.savePath();
 
-        this->openGripper();
         this->sendAction(traj);
         this->closeGripper();
         
@@ -277,5 +279,17 @@ bool Controller::homeSrvCallback(std_srvs::Empty::Request &req, std_srvs::Empty:
 bool Controller::initSrvCallback(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res)
 {
     this->goToInit();
+    return true;
+}
+
+bool Controller::openGripperSrvCallback(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res)
+{
+    this->openGripper();
+    return true;
+}
+
+bool Controller::closeGripperSrvCallback(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res)
+{
+    this->closeGripper();
     return true;
 }
