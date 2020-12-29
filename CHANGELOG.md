@@ -2,6 +2,16 @@
 
 Noteable/major changes will be listed here
 
+## 28th Dec 2020
+
+### Added
+
+- Services for opening and closing the gripper
+
+### Fixed
+
+- Bug that occured when creating a new problem without terminating the node. The planner used the path for the previous solution rather than the newly obtained one. Solution paths and planner are now cleared prior to any new planning problem.
+
 ## 26th Dec 2020
 
 ### Added
