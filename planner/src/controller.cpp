@@ -1,10 +1,11 @@
 #include "planner/controller.h"
 
 Controller::Controller(ros::NodeHandle* nh)
-    : nh_(*nh), manipulator_(nh)
+    : nh_(*nh), manipulator_(nh), planner_(nh, &manipulator_)
 {
     this->init();
     this->goToInit();
+    this->openGripper();
 }
 
 Controller::~Controller()
@@ -12,162 +13,57 @@ Controller::~Controller()
 
 }
 
-void Controller::run()
+void Controller::sendAction(trajectory_msgs::JointTrajectory joint_traj)
 {
-    if (states_.pose.empty() || solved_) return;
-
-    // clear all rviz markers
-    visualization_msgs::Marker marker;
-	marker.action = visualization_msgs::Marker::DELETEALL;
-    marker_pub_.publish(marker);
-
-    this->getCollisionBoxes();
-    Eigen::Vector3d goal;
-    bool found_target = false;
-    for (int i = 0; i < collision_geometries_.size(); i++)
-    {
-        if (collision_geometries_[i].name.find(target_) != std::string::npos)
-        {
-            goal << collision_geometries_[i].pose.position.x,
-                    collision_geometries_[i].pose.position.y,
-                    collision_geometries_[i].pose.position.z;
-            found_target = true;
-            break;
-        }
-    }
+    control_msgs::FollowJointTrajectoryGoal joint_goal;
+    joint_goal.trajectory = joint_traj;
     
-    if (!found_target) { ROS_FATAL("Unable to find collision geometry for [%s]", target_.c_str()); exit(-1); }
+    ROS_INFO("%sSending tracjectory actions...", CYAN);
+    joint_goal.trajectory.header.stamp = ros::Time::now();
+    armAction_->sendGoal(joint_goal);
+    armAction_->waitForResult();
 
-    // ----> Marking goal
-    marker.id = 0;
-    marker.scale.x = marker.scale.y = 0.02;
-    marker.color.b = marker.color.a = 1.0;
-    marker.color.r = marker.color.g = 0.0;
-    marker.ns = "goal";
-    marker.header.frame_id = manipulator_.getName() + "_link_base";
-    marker.header.stamp = ros::Time::now();
-    geometry_msgs::Point p;
-    p.x = goal[0]; p.y = p.y = goal[1]; p.z = goal[2]; marker.points.push_back(p);
-    marker.action = visualization_msgs::Marker::ADD;
-    marker.type = visualization_msgs::Marker::POINTS;
-    marker_pub_.publish(marker);
-    // <----
-    
-    std::vector<Eigen::Vector3d> positions; std::vector<Eigen::Quaterniond> orientations;
-    manipulator_.solveFK(positions, orientations);
-    
-    planner_.setCollisionGeometries(collision_geometries_);
-    planner_.setManipulatorName(manipulator_.getName());
-    planner_.setStart(positions.back(), orientations.back());
-    planner_.setGoal(goal, orientations.back(), target_);
-    
-    og::PathGeometric solution = planner_.plan();
-    
-    if (solution.check())
-    {
-        planner_.savePath();
-        for (size_t i = 0; i < solution.getStateCount(); i++)
-        {
-            marker.id = i;
-            marker.action = visualization_msgs::Marker::ADD;
-            marker.type = visualization_msgs::Marker::ARROW;
-            marker.scale.x = 0.05, marker.scale.y = 0.01, marker.scale.z = 0.03;
-            marker.color.g = marker.color.r = marker.color.a = 1.0;
-            marker.color.b = 0.0;
-            marker.ns = "path";
-            marker.header.frame_id = manipulator_.getName() + "_link_base";
-            marker.header.stamp = ros::Time::now();
-
-            geometry_msgs::Point p;
-            p.x = solution.getStates()[i]->as<ob::SE3StateSpace::StateType>()->getX();
-            p.y = solution.getStates()[i]->as<ob::SE3StateSpace::StateType>()->getY();
-            p.z = solution.getStates()[i]->as<ob::SE3StateSpace::StateType>()->getZ();
-            marker.pose.position = p;
-
-            Eigen::Quaterniond quat;
-            quat.w() = solution.getStates()[i]->as<ob::SE3StateSpace::StateType>()->rotation().w;
-            quat.x() = solution.getStates()[i]->as<ob::SE3StateSpace::StateType>()->rotation().x;
-            quat.y() = solution.getStates()[i]->as<ob::SE3StateSpace::StateType>()->rotation().y;
-            quat.z() = solution.getStates()[i]->as<ob::SE3StateSpace::StateType>()->rotation().z;
-            // arrow is parallel to x-axis when rotation is identity but kinova end effector is parallel
-            // to z-axis when at identity, so transform is needed
-            quat = quat * Eigen::AngleAxisd(-M_PI/2, Eigen::Vector3d::UnitY());
-
-            marker.pose.orientation.w = quat.w();
-            marker.pose.orientation.x = quat.x();
-            marker.pose.orientation.y = quat.y();
-            marker.pose.orientation.z = quat.z();
-            marker.points.resize(0);
-
-            marker_pub_.publish(marker);
-        }
-        ROS_INFO_STREAM(CYAN << "Obtaining joint angles for " << solution.getStateCount() << " states...");
-        
-        trajectory_msgs::JointTrajectory traj = this->getJointGoal(solution);
-        this->sendAction(traj);
-        this->closeGripper();
-        solved_ = true;
-
-        traj.points.pop_back();
-        std::reverse(traj.points.begin(), traj.points.end());
-        trajectory_msgs::JointTrajectoryPoint point;
-        point.velocities = std::vector<double>(7, 0);
-        point.positions = manipulator_.getInitPose();
-        traj.points.push_back(point);
-        
-        for (size_t i = 0; i < traj.points.size(); i++) { traj.points[i].time_from_start = ros::Duration(5.0+(i*2)); }
-        this->sendAction(traj);
-        ros::shutdown();
-    }
+    ROS_INFO("%sTrajectories complete!", GREEN);
 }
 
-trajectory_msgs::JointTrajectory Controller::getJointGoal(og::PathGeometric& path)
+void Controller::openGripper()
 {
-    std::vector<ob::State*> path_states = path.getStates();
-    path_states.erase(path_states.begin());
-
-    int num_joints = manipulator_.getNumJoints();
     trajectory_msgs::JointTrajectory msg;
-    msg.joint_names.resize(num_joints);
-    msg.points.resize(path_states.size());
+    msg.joint_names.resize(3);
+    msg.points.resize(1);
 
-    msg.joint_names = manipulator_.getJointNames();
+    msg.joint_names = manipulator_.getFingerNames();
+    msg.points[0].positions.resize(3);
+    msg.points[0].positions = {0.4, 0.4, 0.4};
+    msg.points[0].time_from_start = ros::Duration(2);
 
-    for (size_t i = 0; i < path_states.size(); i++)
-    {
-        msg.points[i].positions.resize(num_joints);
-        msg.points[i].effort.resize(num_joints);
-        msg.points[i].velocities.resize(num_joints);
-        msg.points[i].accelerations.resize(num_joints);
+    control_msgs::FollowJointTrajectoryGoal joint_goal, gripper_goal;
+    gripper_goal.trajectory = msg;
+    gripper_goal.trajectory.header.stamp = ros::Time::now();
+    gripperAction_->sendGoal(gripper_goal);
+    gripperAction_->waitForResult();
 
-        Eigen::Vector3d position;
-        position << path_states[i]->as<ob::SE3StateSpace::StateType>()->getX(),
-                path_states[i]->as<ob::SE3StateSpace::StateType>()->getY(),
-                path_states[i]->as<ob::SE3StateSpace::StateType>()->getZ();
+    ROS_INFO("%sGripper opened!", GREEN);
+}
 
-        Eigen::Quaterniond orientation;
-        orientation.w() = path_states[i]->as<ob::SE3StateSpace::StateType>()->rotation().w;
-        orientation.x() = path_states[i]->as<ob::SE3StateSpace::StateType>()->rotation().x;
-        orientation.y() = path_states[i]->as<ob::SE3StateSpace::StateType>()->rotation().y;
-        orientation.z() = path_states[i]->as<ob::SE3StateSpace::StateType>()->rotation().z;
+void Controller::closeGripper()
+{
+    trajectory_msgs::JointTrajectory msg;
+    msg.joint_names.resize(3);
+    msg.points.resize(1);
 
-        std::vector<double> angles;
-        if (i == 0) { manipulator_.solveIK(angles, position, orientation, manipulator_.getInitPose()); }
-        else { manipulator_.solveIK(angles, position, orientation, msg.points[i-1].positions); }
+    msg.joint_names = manipulator_.getFingerNames();
+    msg.points[0].positions.resize(3);
+    msg.points[0].positions = {0.95, 0.95, 0.95};
+    msg.points[0].time_from_start = ros::Duration(2);
 
-        msg.points[i].positions = angles;
-        for (int j = 0; j < num_joints; j++)
-        {
-            msg.points[i].effort[j] = 1000;
-            msg.points[i].velocities[j] = 0;
-            msg.points[i].accelerations[j] = 0;
-        }
-        msg.points[i].time_from_start = ros::Duration(5+(i*2));
+    control_msgs::FollowJointTrajectoryGoal joint_goal, gripper_goal;
+    gripper_goal.trajectory = msg;
+    gripper_goal.trajectory.header.stamp = ros::Time::now();
+    gripperAction_->sendGoal(gripper_goal);
+    gripperAction_->waitForResult();
 
-        if (!ros::ok()) { exit(0); }
-    }
-
-    return msg;
+    ROS_INFO("%sGripper closed!", GREEN);
 }
 
 void Controller::goToHome()
@@ -209,23 +105,19 @@ void Controller::goToInit()
     joints_msg.header.stamp = ros::Time::now();
 
     this->sendAction(joints_msg);
-    if (!solved_) { this->openGripper(); }
 
     ROS_INFO("%sDone, Kinova is at init position!", GREEN);
-}
-
-void Controller::setTargetName(std::string target)
-{
-    target_ = target;
 }
 
 void Controller::init()
 {
     states_sub_ = nh_.subscribe("/gazebo/model_states", 10, &Controller::statesCallback, this);
+    start_plan_srv = nh_.advertiseService("start_plan", &Controller::startPlanSrvCallback, this);
     home_srv_ = nh_.advertiseService("go_to_home", &Controller::homeSrvCallback, this);
     init_srv_ = nh_.advertiseService("go_to_init", &Controller::initSrvCallback, this);
+    open_gripper_srv_ = nh_.advertiseService("open_gripper", &Controller::openGripperSrvCallback, this);
+    close_gripper_srv_ = nh_.advertiseService("close_gripper", &Controller::closeGripperSrvCallback, this);
     collisions_client_ = nh_.serviceClient<gazebo_geometries_plugin::geometry>("/gazebo/get_geometry");
-    marker_pub_ = nh_.advertise<visualization_msgs::Marker>("/visualization_marker", 10);
 
     while (states_sub_.getNumPublishers() == 0 && ros::ok())
     {
@@ -237,19 +129,6 @@ void Controller::init()
 
     armAction_->waitForServer();
     ROS_INFO("%sAll topics and servers up!", GREEN);
-}
-
-void Controller::sendAction(trajectory_msgs::JointTrajectory joint_traj)
-{
-    control_msgs::FollowJointTrajectoryGoal joint_goal;
-    joint_goal.trajectory = joint_traj;
-    
-    ROS_INFO("%sSending tracjectory actions...", CYAN);
-    joint_goal.trajectory.header.stamp = ros::Time::now();
-    armAction_->sendGoal(joint_goal);
-    armAction_->waitForResult();
-
-    ROS_INFO("%sTrajectories complete!", GREEN);
 }
 
 void Controller::getCollisionBoxes()
@@ -300,62 +179,9 @@ void Controller::getCollisionBoxes()
             }
         }
     }
-}
 
-void Controller::openGripper()
-{
-    trajectory_msgs::JointTrajectory msg;
-    msg.joint_names.resize(3);
-    msg.points.resize(1);
-
-    msg.joint_names = manipulator_.getFingerNames();
-
-    msg.points[0].positions.resize(3);
-    
-    msg.points[0].positions = {0.4, 0.4, 0.4};
-    msg.points[0].time_from_start = ros::Duration(2);
-
-    control_msgs::FollowJointTrajectoryGoal joint_goal, gripper_goal;
-    gripper_goal.trajectory = msg;
-    gripper_goal.trajectory.header.stamp = ros::Time::now();
-    gripperAction_->sendGoal(gripper_goal);
-    gripperAction_->waitForResult();
-
-    ROS_INFO("%sGripper opened!", GREEN);
-}
-
-void Controller::closeGripper()
-{
-    trajectory_msgs::JointTrajectory msg;
-    msg.joint_names.resize(3);
-    msg.points.resize(1);
-
-    msg.joint_names = manipulator_.getFingerNames();
-
-    msg.points[0].positions.resize(3);
-    
-    msg.points[0].positions = {0.95, 0.95, 0.95};
-    msg.points[0].time_from_start = ros::Duration(2);
-
-    control_msgs::FollowJointTrajectoryGoal joint_goal, gripper_goal;
-    gripper_goal.trajectory = msg;
-    gripper_goal.trajectory.header.stamp = ros::Time::now();
-    gripperAction_->sendGoal(gripper_goal);
-    gripperAction_->waitForResult();
-
-    ROS_INFO("%sGripper closed!", GREEN);
-}
-
-bool Controller::homeSrvCallback(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res)
-{
-    goToHome();
-    return true;
-}
-
-bool Controller::initSrvCallback(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res)
-{
-    goToInit();
-    return true;
+    // reset saved states to force recheck of world models
+    states_ = gazebo_msgs::ModelStates();
 }
 
 void Controller::statesCallback(gazebo_msgs::ModelStatesConstPtr msg)
@@ -363,34 +189,107 @@ void Controller::statesCallback(gazebo_msgs::ModelStatesConstPtr msg)
     states_ = *msg;
 }
 
-int main(int argc, char** argv)
+bool Controller::startPlanSrvCallback(planner::start_plan::Request& req, planner::start_plan::Response& res)
 {
-    std::string target;
-    ros::init(argc, argv, "controller_test_node");
-    ros::NodeHandle nh("~");
-    nh.getParam("target", target);
-    std::cout << CYAN << "Starting test run!" << NC << std::endl;
-
-    if (target.empty()) { target = "coke_can"; }
-
-    std::cout << CYAN << "Target object set to: " << target << "\nInput any key to continue or n to exit: ";
-    std::string in;
-    std::cin >> in;
-    if (in.compare("n") == 0)
+    ROS_INFO("%s[Controller]: Recieved request for %s!", CYAN, req.target.c_str());
+    if (states_.name.empty())
     {
-        std::cout << GREEN << "Exiting!" << NC << std::endl;
-        ros::shutdown();
-        return 0;
+        ROS_ERROR("[Controller]: No states received from Gazebo!");
+        res.message = "Unable to start, No states received from Gazebo!";
+        return true;
     }
 
-    Controller controller(&nh);
-    controller.setTargetName(target);
-    while (ros::ok())
+    collision_geometries_.clear();
+    this->getCollisionBoxes();
+    Eigen::Vector3d goal;
+    bool found_target = false;
+    for (int i = 0; i < collision_geometries_.size(); i++)
     {
-        ros::spinOnce();
-        controller.run();
+        if (collision_geometries_[i].name.compare(req.target+"_collision") == 0)
+        {
+            goal << collision_geometries_[i].pose.position.x,
+                    collision_geometries_[i].pose.position.y,
+                    collision_geometries_[i].pose.position.z;
+            found_target = true;
+            break;
+        }
     }
 
-    std::cout << GREEN << "Run complete, exiting!" << NC << std::endl;
-    return 0;
+    if (!found_target)
+    {
+        ROS_ERROR("[Controller]: Unable to find collision geometry for [%s]", req.target.c_str());
+        res.message = "Unable to start, target not found!";
+        return true;
+    }
+    else if (sqrt((goal[0]*goal[0]) + (goal[1]*goal[1]) + (goal[2]*goal[2])) > 0.95)
+    {
+        ROS_ERROR("[Controller]: Target is out of reach!");
+        res.message = "Unable to start, target is out of reach!";
+        return true;
+    }
+
+    this->openGripper();
+    planner_.clearMarkers();
+    
+    std::vector<Eigen::Vector3d> positions; std::vector<Eigen::Quaterniond> orientations;
+    manipulator_.solveFK(positions, orientations);
+    
+    planner_.setCollisionGeometries(collision_geometries_);
+    planner_.setStart(positions.back(), orientations.back());
+    Eigen::Quaterniond q; q.setIdentity();q = orientations.back();
+    // q = Eigen::AngleAxisd(-M_PI_2, Eigen::Vector3d::UnitX());
+    // goal[0] = -0.00; goal[1] = 0.0; goal[2] = 0.8;
+    planner_.setGoal(goal, orientations.back());
+
+    trajectory_msgs::JointTrajectory traj;
+    if (planner_.plan(traj))
+    {
+        // planner_.savePath();
+
+        this->sendAction(traj);
+        this->closeGripper();
+        
+        // pause for 1 second to allow time for grasp plugin to attach object
+        ros::Duration(1).sleep();
+
+        traj.points.pop_back();
+        std::reverse(traj.points.begin(), traj.points.end());
+        trajectory_msgs::JointTrajectoryPoint point;
+        point.velocities = std::vector<double>(manipulator_.getNumJoints(), 0);
+        point.positions = manipulator_.getInitPose();
+        traj.points.push_back(point);
+        
+        for (size_t i = 0; i < traj.points.size(); i++) { traj.points[i].time_from_start = ros::Duration(5.0+(i*2)); }
+        this->sendAction(traj);
+    }
+    else
+    {
+        ROS_ERROR("Unable to find solution");
+        res.message = "Unable to find solution!";
+    }
+    return true;
+}
+
+bool Controller::homeSrvCallback(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res)
+{
+    this->goToHome();
+    return true;
+}
+
+bool Controller::initSrvCallback(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res)
+{
+    this->goToInit();
+    return true;
+}
+
+bool Controller::openGripperSrvCallback(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res)
+{
+    this->openGripper();
+    return true;
+}
+
+bool Controller::closeGripperSrvCallback(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res)
+{
+    this->closeGripper();
+    return true;
 }
