@@ -1,0 +1,3 @@
+gazebo:
+  static_objects:  ['table', 'cinder_block', 'cabinet', 'bookshelf']
+  pub_arm_geom:     false

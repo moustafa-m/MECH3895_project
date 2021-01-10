@@ -1,19 +1,24 @@
 <launch>
 
   <!-- these are the arguments you can pass this launch file, for example paused:=true -->  
-  <arg name="kinova_robotType" default="j2n6s300"/>
+  <arg name="kinova_robotType" default="j2s7s300"/>
   <arg name="kinova_robotName" default="$(arg kinova_robotType)"/>
+  <arg name="world" default="kinova_tableV1"/>
   <arg name="paused" default="true"/>
   <arg name="use_sim_time" default="true"/>
   <arg name="gui" default="true"/>
   <arg name="headless" default="false"/>
   <arg name="debug" default="false"/>
   <arg name="use_trajectory_controller" default="true"/>
-  <arg name="is7dof" default="false"/>
+  <arg name="is7dof" default="true"/>
+
+  <!-- put relevant parameters up on the parameter server -->
+  <rosparam command="load"  file="$(find kinova_gazebo)/params/gazebo_params.yaml" />
+  <param name="robot_name"  type="string"   value="$(arg kinova_robotName)" />
 
   <!-- We resume the logic in empty_world.launch, changing only the name of the world to be launched -->
   <include file="$(find gazebo_ros)/launch/empty_world.launch">
-    <arg name="world_name" value="$(find kinova_gazebo)/worlds/jaco.world"/>
+    <arg name="world_name" value="$(find kinova_gazebo)/worlds/$(arg world).world"/>
     <arg name="debug" value="$(arg debug)" />
     <arg name="gui" value="$(arg gui)" />
     <arg name="paused" value="$(arg paused)"/>
@@ -23,7 +28,8 @@
 
   <!-- Load the URDF into the ROS Parameter Server -->
   <param name="robot_description"
-    command="$(find xacro)/xacro --inorder '$(find kinova_description)/urdf/$(arg kinova_robotType)_standalone.xacro'" />
+    command="$(find xacro)/xacro --inorder '$(find kinova_description)/urdf/$(arg kinova_robotType)_standalone.xacro'
+      robot:=$(arg kinova_robotType) is7dof:=$(arg is7dof)" />
 
   <!-- Run a python script to the send a service call to gazebo_ros to spawn a URDF robot -->
   <!-- For the 6DOF -->
@@ -60,6 +66,9 @@
     <arg name="use_trajectory_controller" value="$(arg use_trajectory_controller)"/>
     <arg name="is7dof" value="$(arg is7dof)"/>
   </include>
+
+  <!-- Rviz -->
+  <node type="rviz" name="rviz" pkg="rviz" args="-d $(find kinova_gazebo)/rviz/$(arg kinova_robotType).rviz" />
 
   <!-- rqt launch file -->
   <!--  
