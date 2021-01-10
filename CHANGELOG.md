@@ -2,6 +2,17 @@
 
 Noteable/major changes will be listed here
 
+## 10th Jan 2021
+
+### Modified
+
+- Moved Gazebo params file and rviz files to kinova_gazebo package. The planner package still retains the gazebo.launch file however it now just calls the robot_launch.h file in the kinova_gazebo package
+- Gazebo params file is now called gazebo_params.yaml
+
+### Removed
+
+- optimal_test.world and kinova.rviz files. (they were only used to test out functionality)
+
 ## 28th Dec 2020
 
 ### Added
