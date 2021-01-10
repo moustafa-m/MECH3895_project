@@ -9,10 +9,11 @@ add_compile_options(-std=c++14)
 find_package(ompl REQUIRED)
 message(STATUS "Found OMPL ver: ${OMPL_VERSION}")
 
+# this snippet for FCL is from https://github.com/ros-planning/moveit/blob/master/moveit_core/CMakeLists.txt
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(LIBFCL_PC REQUIRED fcl)
 set(LIBFCL_INCLUDE_DIRS ${LIBFCL_PC_INCLUDE_DIRS})
-# find *absolute* paths to LIBFCL_LIBRARIES (snippet from MoveIt! repo moveit_core/CMakeLists.txt)
+# find *absolute* paths to LIBFCL_LIBRARIES
 set(LIBFCL_LIBRARIES)
 foreach(_lib ${LIBFCL_PC_LIBRARIES})
   find_library(_lib_${_lib} ${_lib} HINTS ${LIBFCL_PC_LIBRARY_DIRS})
