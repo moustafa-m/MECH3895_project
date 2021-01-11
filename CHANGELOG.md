@@ -2,6 +2,16 @@
 
 Noteable/major changes will be listed here
 
+## 11th Jan 2021
+
+### Added
+
+- Launch file for the planner node
+
+### Modified
+
+- Changed parameters in [planner/params/params.yaml](planner/params/params.yaml). The parameters are now for the planner and kinematics solver but are not yet used in the node.
+
 ## 10th Jan 2021
 
 ### Modified
