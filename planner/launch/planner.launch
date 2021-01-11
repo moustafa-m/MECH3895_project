@@ -1,0 +1,9 @@
+<launch>
+
+    <arg name="prefix"  default="" />
+
+    <node name="planner_node"   pkg="planner"   type="planner_node"     output="screen" launch-prefix="$(arg prefix)">
+        <rosparam command="load"  file="$(find planner)/params/params.yaml" />
+    </node>
+
+</launch>
