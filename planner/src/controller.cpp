@@ -4,8 +4,7 @@ Controller::Controller(ros::NodeHandle* nh)
     : nh_(*nh), manipulator_(nh), planner_(nh, &manipulator_)
 {
     this->init();
-    this->goToInit();
-    this->openGripper();
+    gripper_open_ = false;
 }
 
 Controller::~Controller()
@@ -18,16 +17,22 @@ void Controller::sendAction(trajectory_msgs::JointTrajectory joint_traj)
     control_msgs::FollowJointTrajectoryGoal joint_goal;
     joint_goal.trajectory = joint_traj;
     
-    ROS_INFO("%sSending tracjectory actions...", CYAN);
+    ROS_INFO("%s[CONTROLLER]: Sending tracjectory actions...", CYAN);
     joint_goal.trajectory.header.stamp = ros::Time::now();
     armAction_->sendGoal(joint_goal);
     armAction_->waitForResult();
 
-    ROS_INFO("%sTrajectories complete!", GREEN);
+    ROS_INFO("%s[CONTROLLER]: Trajectories complete!", GREEN);
 }
 
 void Controller::openGripper()
 {
+    if (gripper_open_)
+    {
+        ROS_INFO("%s[CONTROLLER]: Gripper is already open!", GREEN);
+        return;
+    }
+
     trajectory_msgs::JointTrajectory msg;
     msg.joint_names.resize(3);
     msg.points.resize(1);
@@ -43,11 +48,18 @@ void Controller::openGripper()
     gripperAction_->sendGoal(gripper_goal);
     gripperAction_->waitForResult();
 
-    ROS_INFO("%sGripper opened!", GREEN);
+    gripper_open_ = true;
+    ROS_INFO("%s[CONTROLLER]: Gripper opened!", GREEN);
 }
 
 void Controller::closeGripper()
 {
+    if (!gripper_open_)
+    {
+        ROS_INFO("%s[CONTROLLER]: Gripper is already closed!", GREEN);
+        return;
+    }
+
     trajectory_msgs::JointTrajectory msg;
     msg.joint_names.resize(3);
     msg.points.resize(1);
@@ -63,12 +75,22 @@ void Controller::closeGripper()
     gripperAction_->sendGoal(gripper_goal);
     gripperAction_->waitForResult();
 
-    ROS_INFO("%sGripper closed!", GREEN);
+    gripper_open_ = false;
+    ROS_INFO("%s[CONTROLLER]: Gripper closed!", GREEN);
 }
 
 void Controller::goToHome()
 {
-    ROS_INFO("%sMoving to home position...", CYAN);
+    std::vector<double> current_pos = manipulator_.getJointStates().position;
+    for (int i = 0; i < manipulator_.getFingerNames().size(); i++) current_pos.pop_back();
+
+    if (util::approxEqual(current_pos, manipulator_.getHomePose(), 1e-2))
+    {
+        ROS_INFO("%s[CONTROLLER]: Kinova is already at home pose!", GREEN);
+        return;
+    }
+
+    ROS_INFO("%s[CONTROLLER]: Moving to home position...", CYAN);
     trajectory_msgs::JointTrajectory joints_msg;
     joints_msg.header.seq += 1;
 
@@ -84,12 +106,21 @@ void Controller::goToHome()
     joints_msg.header.stamp = ros::Time::now();
 
     this->sendAction(joints_msg);
-    ROS_INFO("%sDone, Kinova is at home position!", GREEN);
+    ROS_INFO("%s[CONTROLLER]: Done, Kinova is at home position!", GREEN);
 }
 
 void Controller::goToInit()
 {
-    ROS_INFO("%sMoving to init position...", CYAN);
+    std::vector<double> current_pos = manipulator_.getJointStates().position;
+    for (int i = 0; i < manipulator_.getFingerNames().size(); i++) current_pos.pop_back();
+    
+    if (util::approxEqual(current_pos, manipulator_.getInitPose(), 1e-2))
+    {
+        ROS_INFO("%s[CONTROLLER]: Kinova is already at init pose!", GREEN);
+        return;
+    }
+
+    ROS_INFO("%s[CONTROLLER]: Moving to init position...", CYAN);
     trajectory_msgs::JointTrajectory joints_msg;
     joints_msg.header.seq += 1;
 
@@ -106,7 +137,7 @@ void Controller::goToInit()
 
     this->sendAction(joints_msg);
 
-    ROS_INFO("%sDone, Kinova is at init position!", GREEN);
+    ROS_INFO("%s[CONTROLLER]: Done, Kinova is at init position!", GREEN);
 }
 
 void Controller::init()
@@ -121,18 +152,19 @@ void Controller::init()
 
     while (states_sub_.getNumPublishers() == 0 && ros::ok())
     {
-        ros::spinOnce();
-        ROS_INFO_THROTTLE(5, "%sWaiting for Gazebo simulation to come up...", CYAN);
+        ROS_INFO_THROTTLE(5, "%s[CONTROLLER]: Waiting for Gazebo topics to come up...", CYAN);
     }
     armAction_.reset(new ArmActionSimple(manipulator_.getName() + "/effort_joint_trajectory_controller/follow_joint_trajectory"));
     gripperAction_.reset(new ArmActionSimple(manipulator_.getName() + "/effort_finger_trajectory_controller/follow_joint_trajectory"));
 
     armAction_->waitForServer();
-    ROS_INFO("%sAll topics and servers up!", GREEN);
+    ROS_INFO("%s[CONTROLLER]: All topics and servers up!", GREEN);
 }
 
 void Controller::getCollisionBoxes()
 {
+    collision_geometries_.clear();
+
     for (size_t i = 0; i < states_.name.size(); i++)
     {
         if (states_.name[i].find(manipulator_.getName()) != std::string::npos) continue;
@@ -191,6 +223,8 @@ void Controller::statesCallback(gazebo_msgs::ModelStatesConstPtr msg)
 
 bool Controller::startPlanSrvCallback(planner::start_plan::Request& req, planner::start_plan::Response& res)
 {
+    this->goToInit();
+
     ROS_INFO("%s[Controller]: Recieved request for %s!", CYAN, req.target.c_str());
     if (states_.name.empty())
     {
@@ -199,14 +233,17 @@ bool Controller::startPlanSrvCallback(planner::start_plan::Request& req, planner
         return true;
     }
 
-    collision_geometries_.clear();
+    if (req.target.find("_collision") == std::string::npos) req.target += "_collision";
+
+    this->openGripper();
     this->getCollisionBoxes();
     Eigen::Vector3d goal;
     bool found_target = false;
     for (int i = 0; i < collision_geometries_.size(); i++)
     {
-        if (collision_geometries_[i].name.compare(req.target+"_collision") == 0)
+        if (collision_geometries_[i].name.compare(req.target) == 0)
         {
+            planner_.setTargetGeometry(collision_geometries_[i]);
             goal << collision_geometries_[i].pose.position.x,
                     collision_geometries_[i].pose.position.y,
                     collision_geometries_[i].pose.position.z;
@@ -228,43 +265,26 @@ bool Controller::startPlanSrvCallback(planner::start_plan::Request& req, planner
         return true;
     }
 
-    this->openGripper();
+    std::vector<Eigen::Vector3d> start_positions; std::vector<Eigen::Quaterniond> start_orientations;
+    manipulator_.solveFK(start_positions, start_orientations);
+    
     planner_.clearMarkers();
-    
-    std::vector<Eigen::Vector3d> positions; std::vector<Eigen::Quaterniond> orientations;
-    manipulator_.solveFK(positions, orientations);
-    
     planner_.setCollisionGeometries(collision_geometries_);
-    planner_.setStart(positions.back(), orientations.back());
-    Eigen::Quaterniond q; q.setIdentity();q = orientations.back();
-    // q = Eigen::AngleAxisd(-M_PI_2, Eigen::Vector3d::UnitX());
-    // goal[0] = -0.00; goal[1] = 0.0; goal[2] = 0.8;
-    planner_.setGoal(goal, orientations.back());
+    planner_.setStart(start_positions.back(), start_orientations.back());
+    planner_.setGoal(goal, start_orientations.back());
 
     trajectory_msgs::JointTrajectory traj;
     if (planner_.plan(traj))
     {
-        // planner_.savePath();
-
         this->sendAction(traj);
         this->closeGripper();
         
         // pause for 1 second to allow time for grasp plugin to attach object
         ros::Duration(1).sleep();
-
-        traj.points.pop_back();
-        std::reverse(traj.points.begin(), traj.points.end());
-        trajectory_msgs::JointTrajectoryPoint point;
-        point.velocities = std::vector<double>(manipulator_.getNumJoints(), 0);
-        point.positions = manipulator_.getInitPose();
-        traj.points.push_back(point);
-        
-        for (size_t i = 0; i < traj.points.size(); i++) { traj.points[i].time_from_start = ros::Duration(5.0+(i*2)); }
-        this->sendAction(traj);
     }
     else
     {
-        ROS_ERROR("Unable to find solution");
+        ROS_ERROR("[CONTROLLER]: Planner unable to find solution");
         res.message = "Unable to find solution!";
     }
     return true;
@@ -272,24 +292,28 @@ bool Controller::startPlanSrvCallback(planner::start_plan::Request& req, planner
 
 bool Controller::homeSrvCallback(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res)
 {
+    ROS_INFO("%s[CONTROLLER]: Recieved srv request to go to home", CYAN);
     this->goToHome();
     return true;
 }
 
 bool Controller::initSrvCallback(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res)
 {
+    ROS_INFO("%s[CONTROLLER]: Recieved srv request to go to init pose",  CYAN);
     this->goToInit();
     return true;
 }
 
 bool Controller::openGripperSrvCallback(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res)
 {
+    ROS_INFO("%s[CONTROLLER]: Recieved srv request to open gripper",  CYAN);
     this->openGripper();
     return true;
 }
 
 bool Controller::closeGripperSrvCallback(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res)
 {
+    ROS_INFO("%s[CONTROLLER]: Recieved srv request to close gripper",  CYAN);
     this->closeGripper();
     return true;
 }

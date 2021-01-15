@@ -20,6 +20,11 @@ public:
     StateChecker(const ob::SpaceInformationPtr &si, Manipulator* manip, const std::vector<util::CollisionGeometry>* collision_boxes)
         : ob::StateValidityChecker(si), manipulator_(manip), collision_boxes_(collision_boxes)
     {
+        target_collision_ = true;
+        non_static_collisions_ = false;
+
+        ros::param::param<std::vector<std::string>>("/gazebo/static_objects", static_objs_, {"INVALID"});
+
         effector_translation_ = Eigen::Vector3d(0, 0.0, -0.12);
         finger_1_translation_ = Eigen::Vector3d(0.05, 0.0065, -0.032);
         finger_2_translation_ = Eigen::Vector3d(-0.045, 0.025, -0.032);
@@ -27,6 +32,23 @@ public:
         finger_1_rotation_ = Eigen::Quaterniond(-0.571358774537, -0.644936902981, 0.287715328713, -0.418121312009);
         finger_2_rotation_ = Eigen::Quaterniond(0.295890700199, -0.408942259885, -0.577398820031, -0.641736335454);
         finger_3_rotation_ = Eigen::Quaterniond(0.408269313405, -0.295694272898, -0.643000046283, -0.57656916774);
+    }
+
+    void setTargetCollision(bool option)
+    {
+        target_collision_ = option;
+        std::cout << CYAN << "[STATE_CHECKER]: Target collision check " << (option ? "enabled" : "disabled") << NC << std::endl;
+    }
+
+    void setNonStaticCollisions(bool option)
+    {
+        non_static_collisions_ = option;
+        std::cout << CYAN << "[STATE_CHECKER]: Non static collisions check " << (option ? "enabled" : "disabled") << NC << std::endl;
+    }
+
+    void setTargetName(std::string name)
+    {
+        target_name_ = name;
     }
 
     bool isValid(const ob::State* state) const
@@ -122,15 +144,23 @@ public:
         
         q = rotation * finger_3_rotation_;
         fcl::Quaternion3f finger3_quat(q.w(), q.x(), q.y(), q.z());
-        
+
         finger3obj.setTransform(finger3_quat, finger_xyz2);
         // <---- fingers
 
         for (size_t i = 0; i < collision_boxes_->size(); i++)
         {
             // not checking for self collisions or collisions of other joints with environment
-            if (collision_boxes_->at(i).name.find(manipulator_->getName()) != std::string::npos) { continue; }
+            if (collision_boxes_->at(i).name.find(manipulator_->getName()) != std::string::npos)
+            { continue; }
 
+            bool is_static = std::any_of(static_objs_.begin(), static_objs_.end(), [this, i](const std::string& str)
+                { return collision_boxes_->at(i).name.find(str) != std::string::npos; });
+            
+            if ((!is_static && !non_static_collisions_) &&
+                !(collision_boxes_->at(i).name.compare(target_name_) == 0 && target_collision_))
+            { continue; }
+            
             std::shared_ptr<fcl::CollisionGeometry> box;
             box = std::shared_ptr<fcl::CollisionGeometry>(new fcl::Box(collision_boxes_->at(i).dimension.x, collision_boxes_->at(i).dimension.y, collision_boxes_->at(i).dimension.z));
 
@@ -179,6 +209,11 @@ public:
 private:
     Manipulator* manipulator_;
     const std::vector<util::CollisionGeometry>* collision_boxes_;
+    std::vector<std::string> static_objs_;
+    std::string target_name_;
+    
+    bool target_collision_;
+    bool non_static_collisions_;
 
     // these transformations are the same for the 3 finger Jaco arms
     Eigen::Vector3d effector_translation_;

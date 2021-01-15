@@ -28,6 +28,7 @@ public:
     bool solveFK(std::vector<Eigen::Vector3d>& positions, std::vector<Eigen::Quaterniond>& orientations, const std::vector<double>& joints_pos = {});
     std::string getName();
     int getNumJoints();
+    sensor_msgs::JointState getJointStates();
     std::vector<std::string> getJointNames();
     std::vector<std::string> getFingerNames();
     std::vector<double> getHomePose();

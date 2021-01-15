@@ -5,7 +5,7 @@ Manipulator::Manipulator(ros::NodeHandle* nh)
 {
     ros::param::param<std::string>("/robot_name", name_, "j2s7s300");
     
-    ROS_INFO("%sRobot name set to %s", BLUE, name_.c_str());
+    ROS_INFO("%s[MANIPULATOR]: Robot name set to %s", BLUE, name_.c_str());
     
     this->setJointsInfo();
     this->initSolvers();
@@ -25,49 +25,49 @@ Manipulator::~Manipulator()
 bool Manipulator::solveIK(std::vector<double>& output, const Eigen::Vector3d& position, const Eigen::Quaterniond& orientation,
     const std::vector<double>& prev_joints)
 {
-    #ifdef DEBUG
-    std::cout << MAGENTA << "-----\n[DEBUG]\nCurrent angles: {";
-    for (int i = 0; i < num_joints_; i++) { std::cout << joint_states_.position[i] << " "; }
-    std::cout << "}" << std::endl;
+    // #ifdef DEBUG
+    // std::cout << MAGENTA << "-----\n[DEBUG]\nCurrent angles: {";
+    // for (int i = 0; i < num_joints_; i++) { std::cout << joint_states_.position[i] << " "; }
+    // std::cout << "}" << std::endl;
 
-    std::cout << MAGENTA << "Prev angles: {";
-    for (int i = 0; i < num_joints_; i++) { std::cout << prev_joints[i] << " "; }
-    std::cout << "}" << NC << std::endl;
-    #endif
+    // std::cout << MAGENTA << "Prev angles: {";
+    // for (int i = 0; i < num_joints_; i++) { std::cout << prev_joints[i] << " "; }
+    // std::cout << "}" << NC << std::endl;
+    // #endif
 
     KDL::JntArray current_states(num_joints_), out(num_joints_);
     for (int i = 0; i < num_joints_; i++) { current_states(i) = prev_joints[i]; }
 
-    #ifdef DEBUG
-    double r, p, y;
+    // #ifdef DEBUG
+    // double r, p, y;
     
-    std::vector<Eigen::Vector3d> prev_pos; std::vector<Eigen::Quaterniond> prev_orients;
-    this->solveFK(prev_pos, prev_orients, prev_joints);
-    KDL::Rotation m = KDL::Rotation::Quaternion(prev_orients.back().x(), prev_orients.back().y(), prev_orients.back().z(),
-                prev_orients.back().w());
-    m.GetRPY(r, p, y);
+    // std::vector<Eigen::Vector3d> prev_pos; std::vector<Eigen::Quaterniond> prev_orients;
+    // this->solveFK(prev_pos, prev_orients, prev_joints);
+    // KDL::Rotation m = KDL::Rotation::Quaternion(prev_orients.back().x(), prev_orients.back().y(), prev_orients.back().z(),
+    //             prev_orients.back().w());
+    // m.GetRPY(r, p, y);
 
-    std::cout << MAGENTA << "-----\n[DEBUG]\n-----\nEnd effector prev Pose: \nPos: {" << prev_pos.back().x()
-            << ", " << prev_pos.back().y() << ", " << prev_pos.back().z() <<
-            "}\nRPY: {" << r << ", " << p << ", " << y << "}\n-----" << NC << std::endl;
-    #endif
+    // std::cout << MAGENTA << "-----\n[DEBUG]\n-----\nEnd effector prev Pose: \nPos: {" << prev_pos.back().x()
+    //         << ", " << prev_pos.back().y() << ", " << prev_pos.back().z() <<
+    //         "}\nRPY: {" << r << ", " << p << ", " << y << "}\n-----" << NC << std::endl;
+    // #endif
 
     KDL::Frame end_effector_pose;
     end_effector_pose.M = KDL::Rotation::Quaternion(orientation.x(), orientation.y(), orientation.z(), orientation.w());
     end_effector_pose.p[0] = position[0]; end_effector_pose.p[1] = position[1]; end_effector_pose.p[2] = position[2];
     
-    #ifdef DEBUG
-    end_effector_pose.M.GetRPY(r, p, y);
-    std::cout << MAGENTA << "[DEBUG]\n-----\nEnd Effector desired Pose: \n" << "Pos: {" << end_effector_pose.p[0]
-            << ", " << end_effector_pose.p[1] << ", " << end_effector_pose.p[2] << "}\nRPY: {" << r << ", "
-            << p << ", " << y << "}\n-----" << NC << std::endl;
-    #endif
+    // #ifdef DEBUG
+    // end_effector_pose.M.GetRPY(r, p, y);
+    // std::cout << MAGENTA << "[DEBUG]\n-----\nEnd Effector desired Pose: \n" << "Pos: {" << end_effector_pose.p[0]
+    //         << ", " << end_effector_pose.p[1] << ", " << end_effector_pose.p[2] << "}\nRPY: {" << r << ", "
+    //         << p << ", " << y << "}\n-----" << NC << std::endl;
+    // #endif
 
     int success = ik_solver_->CartToJnt(current_states, end_effector_pose, out);
 
     if (success < 0)
     {
-        ROS_ERROR_STREAM(RED << "-----\nFailed to obtain IK solution!\nFailed for state:\n"<< "Pos: {" << end_effector_pose.p[0]
+        ROS_ERROR_STREAM(RED << "-----\n[MANIPULATOR]: Failed to obtain IK solution!\nFailed for state:\n"<< "Pos: {" << end_effector_pose.p[0]
             << ", " << position[0] << ", " << position[1] << "}\nQuaternion: {" << position[2] << ", "
             << orientation.y() << ", " << orientation.z() << ", " << orientation.w() << "}\n-----" << NC << std::endl);
         return false;
@@ -120,6 +120,11 @@ std::string Manipulator::getName()
     return name_;
 }
 
+sensor_msgs::JointState Manipulator::getJointStates()
+{
+    return joint_states_;
+}
+
 int Manipulator::getNumJoints()
 {
     return num_joints_;
@@ -164,19 +169,19 @@ void Manipulator::initSolvers()
     std::string chain_start, chain_end;
     chain_start = name_ + "_link_base";
     chain_end = name_ + "_end_effector";
-    ik_solver_ = new TRAC_IK::TRAC_IK(chain_start, chain_end, "/robot_description", 0.1, 1e-3, TRAC_IK::Distance);
+    ik_solver_ = new TRAC_IK::TRAC_IK(chain_start, chain_end, "/robot_description", 0.05, 1e-3, TRAC_IK::Distance);
 
     bool valid = ik_solver_->getKDLChain(chain_);
     if (!valid)
     {
-        ROS_ERROR("Invalid kinematic chain!");
+        ROS_ERROR("[MANIPULATOR]: Invalid kinematic chain!");
         exit(-1);
     }
 
     valid = ik_solver_->getKDLLimits(kdl_lower_b_, kdl_upper_b_);
     if (!valid)
     {
-        ROS_ERROR("Invalid upper and lower bounds!");
+        ROS_ERROR("[MANIPULATOR]: Invalid upper and lower bounds!");
         exit(-1);
     }
 
