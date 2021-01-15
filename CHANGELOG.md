@@ -2,6 +2,36 @@
 
 Noteable/major changes will be listed here
 
+## 14th Jan 2021
+
+### Added
+
+- getJointStates() method in Manipulator class
+- setTargetName(), setTargetCollision(), and setNonStaticCollision() methods for StateChecker class
+- setTargetGeometry(), isObjectBlocked(), and planInClutter() methods to Planner class
+- StateChecker can disable/enable checks for target and non-static object collisions using the previously mentioned methods
+- check for Gazebo node if starting planner node without Gazebo being launched first
+- prefixes to print messages to identify the class that printed it (e.g. [PLANNER]: for planner related code)
+- limited support for clutter clearing using push actions
+- Controller class checks for current state of Kinova (init and home position check, and gripper open/close checks)
+- templated functions approxEqual() and clam() in util.h
+
+### Modified
+
+- Planner node uses ros::MultiThreadedSpinner with 3 threads instead of ros::spinOnce() with pre-defined rate
+- arm no longer moves to init when node starts. When a planning request is sent, the arm moves to the init position
+- StateChecker class integrated in Planner class to allow its use to check states without having to start planning a path
+- IK solver timeout reduced to 0.05s
+- Path markers are now coloured differently
+- Target marker is now shown with the same geometry as the object (i.e. it appears exactly like the object's collision geometry)
+- 
+
+
+### Removed
+
+- unused headers in planner.h
+- Kinova will not return to home by default after a successful planning attempt
+
 ## 11th Jan 2021
 
 ### Added
