@@ -225,10 +225,10 @@ bool Controller::startPlanSrvCallback(planner::start_plan::Request& req, planner
 {
     this->goToInit();
 
-    ROS_INFO("%s[Controller]: Recieved request for %s!", CYAN, req.target.c_str());
+    ROS_INFO("%s[CONTROLLER]: Recieved request for %s!", CYAN, req.target.c_str());
     if (states_.name.empty())
     {
-        ROS_ERROR("[Controller]: No states received from Gazebo!");
+        ROS_ERROR("[CONTROLLER]: No states received from Gazebo!");
         res.message = "Unable to start, No states received from Gazebo!";
         return true;
     }
@@ -254,13 +254,13 @@ bool Controller::startPlanSrvCallback(planner::start_plan::Request& req, planner
 
     if (!found_target)
     {
-        ROS_ERROR("[Controller]: Unable to find collision geometry for [%s]", req.target.c_str());
+        ROS_ERROR("[CONTROLLER]: Unable to find collision geometry for [%s]", req.target.c_str());
         res.message = "Unable to start, target not found!";
         return true;
     }
     else if (sqrt((goal[0]*goal[0]) + (goal[1]*goal[1]) + (goal[2]*goal[2])) > 0.95)
     {
-        ROS_ERROR("[Controller]: Target is out of reach!");
+        ROS_ERROR("[CONTROLLER]: Target is out of reach!");
         res.message = "Unable to start, target is out of reach!";
         return true;
     }
