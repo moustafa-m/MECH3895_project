@@ -38,7 +38,6 @@ private:
     void setJointsInfo();
     void initSolvers();
     void setDefaultPoses();
-    void setLimits();
     void setUpperBounds();
     void setLowerBounds();
     void setDHParameters();
@@ -65,9 +64,6 @@ private:
 
     std::vector<double> home_pose_;
     std::vector<double> init_pose_;
-
-    std::vector<double> upper_bounds_;
-    std::vector<double> lower_bounds_;
 
     std::vector<std::string> joint_names_;
     std::vector<std::string> finger_names_;

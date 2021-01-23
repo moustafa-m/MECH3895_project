@@ -10,7 +10,6 @@ Manipulator::Manipulator(ros::NodeHandle* nh)
     this->setJointsInfo();
     this->initSolvers();
     this->setDefaultPoses();
-    this->setLimits();
     this->setDHParameters();
 
     joints_sub_ = nh_.subscribe("/" + name_ +"/joint_states", 10, &Manipulator::jointStatesCallback, this);
@@ -225,17 +224,6 @@ void Manipulator::setDefaultPoses()
     {
         home_pose_ = {0.0, 2.9, 0.0, 1.3, 4.2, 1.4, 0.0};
         init_pose_ = {0.0, 3*M_PI_4, 0.0, 0.8, -M_PI, M_PI, M_PI};
-    }
-}
-
-void Manipulator::setLimits()
-{
-    upper_bounds_.resize(num_joints_); lower_bounds_.resize(num_joints_);
-
-    for (int i = 0; i < num_joints_; i++)
-    {
-        upper_bounds_[i] = kdl_upper_b_.data[i];
-        lower_bounds_[i] = kdl_lower_b_.data[i];
     }
 }
 
