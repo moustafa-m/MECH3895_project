@@ -24,8 +24,6 @@ Noteable/major changes will be listed here
 - IK solver timeout reduced to 0.05s
 - Path markers are now coloured differently
 - Target marker is now shown with the same geometry as the object (i.e. it appears exactly like the object's collision geometry)
-- 
-
 
 ### Removed
 
