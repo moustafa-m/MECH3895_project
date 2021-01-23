@@ -254,6 +254,8 @@ void Manipulator::setDHParameters()
         transform_ << 1, 0, 0,
                     0, 1, 0,
                     0, 0, 1;
+
+        return;
     }
     else if (name_.compare("j2s6s300") == 0)
     {
