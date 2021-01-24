@@ -12,21 +12,17 @@ bool checkGazeboIsUp()
     }
 }
 
-void waitForGazebo()
+int main(int argc, char** argv)
 {
+    ros::init(argc, argv, "planner_node");
+    ros::NodeHandle nh;
+    
     while (!checkGazeboIsUp() && ros::ok())
     {
         ROS_WARN_THROTTLE(5, "Gazebo not detected! Waiting...");
     }
 
     ROS_INFO("%sGazebo is up! Starting...", GREEN);
-}
-
-int main(int argc, char** argv)
-{
-    ros::init(argc, argv, "planner_node");
-    ros::NodeHandle nh;
-    waitForGazebo();
     
     Controller controller(&nh);
     ros::MultiThreadedSpinner spinner(3);
