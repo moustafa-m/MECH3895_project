@@ -2,6 +2,21 @@
 
 Noteable/major changes will be listed here
 
+## 24th Jan 2021
+
+### Added
+
+- Integrated ROS params into Planner and Manipulator classes
+    - initParams() method for Manipulator class added
+    - If the display_path param is set to true but save_path is set to false, the path will still be saved but will be removed after it is plotted.
+- Overloaded == and != operators for CollisionGeometry struct
+
+### Removed
+
+- setLimits() method in Manipulator class. Was completely unnecessary, don't know why I even implemented it?
+- waitForGazebo() method in node.cpp. It was redundant, so functionality is implemented in main() instead.
+- Error and Debug prints from solveIK() and solveFK() methods in Manipulator class. Errors will be handled with assert() and by user calling the method.
+
 ## 14th Jan 2021
 
 ### Added
