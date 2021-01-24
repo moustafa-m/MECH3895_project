@@ -25,6 +25,20 @@ namespace util
         geometry_msgs::Pose pose;
     } CollisionGeometry;
 
+    inline bool operator==(const CollisionGeometry& lhs, const CollisionGeometry& rhs)
+    {
+        return lhs.name.compare(rhs.name) == 0 &&
+            lhs.min == rhs.min &&
+            lhs.max == rhs.max &&
+            lhs.pose == rhs.pose &&
+            lhs.dimension == rhs.dimension;
+    }
+
+    inline bool operator!=(const CollisionGeometry& lhs, const CollisionGeometry& rhs)
+    {
+        return !(lhs == rhs);
+    }
+
     template <typename T>
     T clamp(T val, T lower, T upper)
     {
