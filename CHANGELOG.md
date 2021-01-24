@@ -14,7 +14,7 @@ Noteable/major changes will be listed here
 - prefixes to print messages to identify the class that printed it (e.g. [PLANNER]: for planner related code)
 - limited support for clutter clearing using push actions
 - Controller class checks for current state of Kinova (init and home position check, and gripper open/close checks)
-- templated functions approxEqual() and clam() in util.h
+- templated functions approxEqual() and clamp() in util.h
 
 ### Modified
 
