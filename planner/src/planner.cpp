@@ -3,8 +3,8 @@
 Planner::Planner(ros::NodeHandle* nh, Manipulator* manip)
     : nh_(*nh), manipulator_(manip)
 {
-    this->init();
     this->initROS();
+    this->init();
 }
 
 Planner::~Planner()
@@ -20,10 +20,11 @@ bool Planner::plan(trajectory_msgs::JointTrajectory& traj)
     solutions_.clear();
     planner_->clear();
     planner_->setProblemDefinition(pdef_);
+    if (!planner_->isSetup()) planner_->setup();
 
     // initial planning only computes a path without colliding with static objects, non-static objects are not considered
     auto t_start = HighResClk::now();
-    ob::PlannerStatus solved = planner_->solve(60);
+    ob::PlannerStatus solved = planner_->solve(timeout_);
     auto t_end = HighResClk::now();
 
     if (solved != ob::PlannerStatus::EXACT_SOLUTION)
@@ -65,15 +66,15 @@ bool Planner::plan(trajectory_msgs::JointTrajectory& traj)
             
             planner_->clear();
             planner_->setProblemDefinition(pdef);
-            
-            solved = planner_->solve(60);
+            if (!planner_->isSetup()) planner_->setup();
+
+            solved = planner_->solve(timeout_);
             
             if (solved == ob::PlannerStatus::EXACT_SOLUTION)
             {
                 og::PathSimplifierPtr simplifier = og::PathSimplifierPtr(new og::PathSimplifier(si_));
                 simplifier->simplifyMax(*pdef->getSolutionPath()->as<og::PathGeometric>());
-                
-                pdef->getSolutionPath()->as<og::PathGeometric>()->interpolate(5);
+                pdef->getSolutionPath()->as<og::PathGeometric>()->interpolate(path_states_);
                 solutions_.push_back(*pdef->getSolutionPath()->as<og::PathGeometric>());
                 this->publishMarkers();
             }
@@ -90,7 +91,7 @@ bool Planner::plan(trajectory_msgs::JointTrajectory& traj)
     {
         og::PathSimplifierPtr simplifier = og::PathSimplifierPtr(new og::PathSimplifier(si_));
         simplifier->simplifyMax(*pdef_->getSolutionPath()->as<og::PathGeometric>());
-        pdef_->getSolutionPath()->as<og::PathGeometric>()->interpolate(8);
+        pdef_->getSolutionPath()->as<og::PathGeometric>()->interpolate(path_states_);
         
         solutions_.push_back(*pdef_->getSolutionPath()->as<og::PathGeometric>());
     }
@@ -101,6 +102,7 @@ bool Planner::plan(trajectory_msgs::JointTrajectory& traj)
     std::cout << CYAN << "Planner took: " << duration << " ms (" << duration/1000.0 << " sec)" << std::endl;
     plan_time_ = duration;
 
+    if (save_path_ || display_path_) { this->savePath(); }
     this->publishMarkers();
     return this->generateTrajectory(traj);
 }
@@ -209,9 +211,18 @@ void Planner::savePath()
     stats_file.flush();
     stats_file.close();
 
-    std::string dir = ros::package::getPath("planner") + "/paths";
-    std::string cmd = "cd " + dir + "&& ./plot.sh -f " + planner_->getName() + "/" + ss.str() + ".txt";
-    system(cmd.c_str());
+    if (display_path_)
+    {
+        std::string dir = ros::package::getPath("planner") + "/paths";
+        std::string cmd = "cd " + dir + " && ./plot.sh -f " + planner_->getName() + "/" + ss.str() + ".txt";
+        system(cmd.c_str());
+
+        if (!save_path_)
+        {
+            cmd = "rm " + pathtxt + " " + statstxt;
+            system(cmd.c_str());
+        }
+    }
 }
 
 void Planner::clearMarkers()
@@ -244,8 +255,9 @@ void Planner::init()
     pdef_ = ob::ProblemDefinitionPtr(new ob::ProblemDefinition(si_));
     pdef_->setOptimizationObjective(ob::OptimizationObjectivePtr(new ob::PathLengthOptimizationObjective(si_)));
 
-    planner_ = ob::PlannerPtr(new og::KPIECE1(si_));
-    planner_->setup();
+    if (planner_name_.compare("RRTStar") == 0) { planner_ = ob::PlannerPtr(new og::RRTstar(si_)); }
+    else if (planner_name_.compare("BFMT") == 0) { planner_ = ob::PlannerPtr(new og::BFMT(si_)); }
+    else { planner_ = ob::PlannerPtr(new og::KPIECE1(si_)); planner_->setup(); }    
 }
 
 void Planner::initROS()
@@ -253,12 +265,29 @@ void Planner::initROS()
     marker_pub_ = nh_.advertise<visualization_msgs::Marker>("/visualization_marker", 10);
 
     ros::param::param<std::vector<std::string>>("/gazebo/static_objects", static_objs_, {"INVALID"});
+    ros::param::param<std::string>("~planner/name", planner_name_, "KPIECE1");
+    ros::param::param<int>("~planner/timeout", timeout_, 60);
+    ros::param::param<int>("~planner/path_states", path_states_, 10);
+    ros::param::param<bool>("~planner/save_path", save_path_, false);
+    ros::param::param<bool>("~planner/display_path", display_path_, false);
+
+    if (planner_name_ != "KPIECE1" && planner_name_ != "BFMT" && planner_name_ != "RRTStar")
+    {
+        ROS_WARN("[PLANNER]: unrecognised planner name, setting to KPIECE1!");
+        planner_name_ = "KPIECE1";
+        ros::param::set("~planner/name", "KPIECE1");
+    }
     
     ROS_INFO("%s*******PLANNER PARAMS********", BLUE);
     
     std::stringstream ss;
     for (int i = 0; i < static_objs_.size(); i++) { ss << static_objs_[i] << " "; }
     ROS_INFO_STREAM(BLUE << "Static Objs\t: " << ss.str());
+    ROS_INFO_STREAM(BLUE << "name\t\t: " << planner_name_);
+    ROS_INFO_STREAM(BLUE << "timeout\t\t: " << timeout_);
+    ROS_INFO_STREAM(BLUE << "path_states\t: " << path_states_);
+    ROS_INFO_STREAM(BLUE << "save_path\t: " << std::boolalpha << save_path_);
+    ROS_INFO_STREAM(BLUE << "display_path\t: " << std::boolalpha << display_path_);
     
     ROS_INFO("%s*****************************", BLUE);
 }

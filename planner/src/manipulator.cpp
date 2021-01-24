@@ -3,10 +3,7 @@
 Manipulator::Manipulator(ros::NodeHandle* nh)
     : nh_(*nh)
 {
-    ros::param::param<std::string>("/robot_name", name_, "j2s7s300");
-    
-    ROS_INFO("%s[MANIPULATOR]: Robot name set to %s", BLUE, name_.c_str());
-    
+    this->initParams();
     this->setJointsInfo();
     this->initSolvers();
     this->setDefaultPoses();
@@ -149,6 +146,22 @@ std::vector<double> Manipulator::getInitPose()
     return init_pose_;
 }
 
+void Manipulator::initParams()
+{
+    int type;
+    ros::param::param<int>("~kinematics_solver/type", type, 0);
+    ros::param::param<double>("~kinematics_solver/timeout", timeout_, 0.005);
+    ros::param::param<std::string>("/robot_name", name_, "j2s7s300");
+
+    solve_type_ = static_cast<TRAC_IK::SolveType>(type);
+
+    ROS_INFO("%s*****MANIPULATOR PARAMS******", BLUE);
+    ROS_INFO_STREAM(BLUE << "solve_type\t: " << type);
+    ROS_INFO_STREAM(BLUE << "timeout\t\t: " << timeout_);
+    ROS_INFO_STREAM(BLUE << "robot_name\t: " << name_);
+    ROS_INFO("%s*****************************", BLUE);
+}
+
 void Manipulator::setJointsInfo()
 {
     if (name_.compare("j2n6s300") == 0 || name_.compare("j2s6s300") == 0) { num_joints_ = 6; }
@@ -168,7 +181,7 @@ void Manipulator::initSolvers()
     std::string chain_start, chain_end;
     chain_start = name_ + "_link_base";
     chain_end = name_ + "_end_effector";
-    ik_solver_ = new TRAC_IK::TRAC_IK(chain_start, chain_end, "/robot_description", 0.05, 1e-3, TRAC_IK::Distance);
+    ik_solver_ = new TRAC_IK::TRAC_IK(chain_start, chain_end, "/robot_description", timeout_, 1e-3, solve_type_);
 
     bool valid = ik_solver_->getKDLChain(chain_);
     if (!valid)

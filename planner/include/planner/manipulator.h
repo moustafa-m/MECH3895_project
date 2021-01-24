@@ -35,6 +35,7 @@ public:
     std::vector<double> getInitPose();
 
 private:
+    void initParams();
     void setJointsInfo();
     void initSolvers();
     void setDefaultPoses();
@@ -52,6 +53,9 @@ private:
     std::string name_ = "j2s7s300";
 
     TRAC_IK::TRAC_IK* ik_solver_;
+    TRAC_IK::SolveType solve_type_;
+    double timeout_;
+
     KDL::ChainFkSolverPos_recursive* fk_solver_;
     KDL::Chain chain_;
     KDL::JntArray kdl_lower_b_, kdl_upper_b_;

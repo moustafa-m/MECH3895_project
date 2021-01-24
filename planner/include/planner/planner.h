@@ -52,6 +52,12 @@ private:
     ros::NodeHandle nh_;
     ros::Publisher marker_pub_;
 
+    bool save_path_;
+    bool display_path_;
+    int timeout_;
+    int path_states_;
+    std::string planner_name_;
+
     Manipulator* manipulator_;
 
     double plan_time_;
