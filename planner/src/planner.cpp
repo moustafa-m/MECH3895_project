@@ -546,9 +546,30 @@ void Planner::planInClutter(std::vector<int> idxs, std::vector<ob::ScopedState<o
         states.push_back(state);
     }
 
-    int direction = (goal_pos_.x() < 0) ? -1 : 1;
-    double max_x = std::sqrt( (0.94*0.94) - (goal_pos_.y()*goal_pos_.y()) - (goal_pos_.z()*goal_pos_.z()) );
-    double desired_x = util::clamp<double>(goal_pos_.x() + direction*0.05, -1*max_x, max_x);
+    // check if any object is close behind the object, which would interfere with the final object push
+    bool obj_behind = false;
+    for (int i = 0; i < collision_boxes_.size(); i++)
+    {
+        if (std::abs(collision_boxes_[i].pose.position.y - goal_pos_.y()) < 0.03 &&
+            std::abs(collision_boxes_[i].pose.position.x) - std::abs(goal_pos_.x()) <= 0.05)
+        {
+            obj_behind = true;
+            break;
+        }
+    }
+
+    // the final object push is not performed if there is an object behind the goal
+    double desired_x;
+    if (!obj_behind)
+    {
+        int direction = (goal_pos_.x() < 0) ? -1 : 1;
+        double max_x = std::sqrt( (0.94*0.94) - (goal_pos_.y()*goal_pos_.y()) - (goal_pos_.z()*goal_pos_.z()) );
+        desired_x = util::clamp<double>(goal_pos_.x() + direction*0.05, -1*max_x, max_x);
+    }
+    else
+    {
+        desired_x = goal_pos_.x();
+    }
 
     state->setX(desired_x);
     state->setY(goal_pos_.y());
