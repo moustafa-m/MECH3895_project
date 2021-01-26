@@ -1,5 +1,7 @@
 #include "gazebo_geometries_plugin/geometries_plugin.h"
 
+static int prev_num_models = 0;
+
 using namespace gazebo;
 
 GeometriesPlugin::GeometriesPlugin()
@@ -107,6 +109,17 @@ void GeometriesPlugin::publishMarkers()
 
     std::vector<gazebo::physics::ModelPtr> models = world_->Models();
     if (models.empty()) return;
+
+    if (prev_num_models != models.size())
+    {
+        marker.action = visualization_msgs::Marker::DELETEALL;
+        marker.header.frame_id = "world";
+        marker.header.stamp = ros::Time::now();
+        marker.header.seq += 1;
+        marker_pub_.publish(marker);
+
+        prev_num_models = models.size();
+    }
 
     for (size_t i = 0; i < models.size(); i++)
     {
