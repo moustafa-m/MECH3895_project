@@ -374,6 +374,25 @@ void Planner::publishMarkers()
     {
         visualization_msgs::Marker marker;
 
+        // ---> state markers
+        marker.id = j;
+        marker.ns = "states";
+        marker.header.frame_id = manipulator_->getName() + "_link_base";
+        marker.header.stamp = ros::Time::now();
+        marker.color.a = 1.0; marker.color.g = 1.0; marker.color.r = marker.color.g = 0;
+        marker.type = visualization_msgs::Marker::SPHERE;
+        marker.action = visualization_msgs::Marker::ADD;
+        marker.scale.x = marker.scale.y = marker.scale.z = 0.02;
+        marker.pose.position.x = solutions_[j].getStates()[0]->as<ob::SE3StateSpace::StateType>()->getX();
+        marker.pose.position.y = solutions_[j].getStates()[0]->as<ob::SE3StateSpace::StateType>()->getY();
+        marker.pose.position.z = solutions_[j].getStates()[0]->as<ob::SE3StateSpace::StateType>()->getZ();
+        marker.pose.orientation.w = 1;
+        marker.pose.orientation.x = marker.pose.orientation.y = marker.pose.orientation.z = 0;
+        marker.points.resize(0);
+        marker_pub_.publish(marker);
+        // <--- state markers
+
+        // ---> path markers
         for (size_t i = 0; i < solutions_[j].getStateCount(); i++)
         {
             marker.id = marker_id++;
@@ -416,6 +435,7 @@ void Planner::publishMarkers()
 
             marker_pub_.publish(marker);
         }
+        // <--- path markers
     }
 }
 
