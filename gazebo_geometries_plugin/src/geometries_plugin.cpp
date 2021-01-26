@@ -34,7 +34,6 @@ void GeometriesPlugin::Load(physics::WorldPtr _world, sdf::ElementPtr _sdf)
 
     this->initKinovaDimensions();
 
-    base_frame_id_ = robot_name_ + "_link_base";
     geometries_ns_ = "geometries";
 
     marker_pub_ = nh_->advertise<visualization_msgs::Marker>("/geometries_markers", 10);
@@ -161,7 +160,7 @@ void GeometriesPlugin::publishMarkers()
                 marker.pose = srv.response.pose[j];
                 marker.scale = srv.response.dimensions[j];
 
-                marker.header.frame_id = base_frame_id_;
+                marker.header.frame_id = "world";
                 marker.header.stamp = ros::Time::now();
                 marker.header.seq += 1;
                 marker.ns = geometries_ns_;
