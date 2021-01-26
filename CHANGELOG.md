@@ -2,6 +2,13 @@
 
 Noteable/major changes will be listed here
 
+### 26th Jan 2021
+
+### Fixed
+
+- Gazebo geometries plugin using Kinova base frame as reference instead of world frame. Again, what was I thinking...
+- Gazebo geometries plugin not updating when deleting models without disabling the marker topic in Rviz and enabling it again.
+
 ## 24th Jan 2021
 
 ### Added
