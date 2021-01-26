@@ -48,6 +48,8 @@ private:
     void publishMarkers();
     bool isObjectBlocked(std::vector<int>& idxs);
     void planInClutter(std::vector<int> idxs, std::vector<ob::ScopedState<ob::SE3StateSpace>>& states);
+    bool getPushAction(std::vector<ob::ScopedState<ob::SE3StateSpace>>& states, std::vector<util::CollisionGeometry>& objs,
+        const util::CollisionGeometry& geom);
 
     ros::NodeHandle nh_;
     ros::Publisher marker_pub_;

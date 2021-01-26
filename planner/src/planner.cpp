@@ -530,56 +530,15 @@ void Planner::planInClutter(std::vector<int> idxs, std::vector<ob::ScopedState<o
         
         states.push_back(state);
 
-        int direction;
         for (int i = 0; i < objects.size(); i++)
         {
-            if (objects[i].name.compare("SKIP") == 0) continue;
+            if (objects[i].name == "SKIP") continue;
 
-            // push direction based on relative position of the blocking object to the goal
-            direction = (objects[i].pose.position.y < goal_pos_.y()) ? -1 : 1;
-
-            // initially move to be directly beside blocking object (based on direction)
-            double desired_y = objects[i].pose.position.y - 1.5*direction*(objects[i].dimension.y);
-            
-            //TODO: add check for static obj collision
-
-            state->setX(objects[i].pose.position.x);
-            state->setY(desired_y); //TODO: apply rotation to dimensions
-            state->setZ(goal_pos_.z());
-
-            // std::cout << "Object: " << objects[i].name << " state: " << state->getX() << ", " << state->getY() << ", " << state->getZ() << std::endl;
-            // std::cout << "obj pos: " << objects[i].pose.position << std::endl;
-            // std::cout << "direction: " << direction << std::endl;
-            
-            states.push_back(state);
-
-            for (util::CollisionGeometry& geom : objects)
-            {
-                if (geom.name.compare(objects[i].name) == 0) continue;
-
-                if (std::abs(geom.pose.position.x - state->getX()) <= 0.02 &&
-                    std::abs(geom.pose.position.y - state->getY()) <= 0.1 &&
-                    std::abs(geom.pose.position.z - state->getZ()) <= 0.1)
-                {
-                    std::cout << BLUE << "[PLANNER]: Skipping " << geom.name << std::endl;
-                    geom.name = "SKIP";
-                }
-            }
-            
-            // push action
-            state->setY(objects[i].pose.position.y + direction*(0.05)); //TODO: add push distance computation
-            states.push_back(state);
-
-            direction = (goal_pos_.x() < 0) ? 1 : -1;
-            state->setX(objects[i].pose.position.x + (direction*0.1));
-            // states.push_back(state);
-            state->setY(goal_pos_.y());
-            states.push_back(state);
+            this->getPushAction(states, objects, objects[i]);            
         }
     }
     else
     {
-        //TODO: add check for objects DIRECTLY behind object that may block the fingers when closing the gripper
         // if the indices array is empty, objects are surronding the object but may be pushed by a grasp attempt
         state->setX(goal_pos_.x()*0.20);
         state->setY(goal_pos_.y());
@@ -587,11 +546,78 @@ void Planner::planInClutter(std::vector<int> idxs, std::vector<ob::ScopedState<o
         states.push_back(state);
     }
 
-    direction = (goal_pos_.x() < 0) ? -1 : 1;
-    // final goal object
+    int direction = (goal_pos_.x() < 0) ? -1 : 1;
     double max_x = std::sqrt( (0.94*0.94) - (goal_pos_.y()*goal_pos_.y()) - (goal_pos_.z()*goal_pos_.z()) );
-    state->setX(util::clamp<double>(goal_pos_.x() + direction*0.05, -1*max_x, max_x));
+    double desired_x = util::clamp<double>(goal_pos_.x() + direction*0.05, -1*max_x, max_x);
+
+    state->setX(desired_x);
     state->setY(goal_pos_.y());
     state->setZ(goal_pos_.z());
+    if (!state_checker_->isValid(state.get())) { state->setX(goal_pos_.x()); }
     states.push_back(state);
+}
+
+bool Planner::getPushAction(std::vector<ob::ScopedState<ob::SE3StateSpace>>& states, std::vector<util::CollisionGeometry>& objs,
+    const util::CollisionGeometry& geom)
+{
+    state_checker_->setIK(true);
+    double init_dist = (1.5*geom.dimension.y) + 0.05;
+    int direction = (geom.pose.position.y > target_geom_.pose.position.y) ? 1 : -1;
+
+    // initially move to be directly beside blocking object (based on direction)
+    double desired_y = geom.pose.position.y - direction*init_dist;
+
+    ob::ScopedState<ob::SE3StateSpace> push_state(space_);
+
+    push_state = pdef_->getStartState(0);
+    push_state->setX(geom.pose.position.x);
+    push_state->setY(desired_y);
+    push_state->setZ(goal_pos_.z());
+
+    if (!state_checker_->isValid(push_state.get()))
+    {
+        direction = -1;
+        desired_y = geom.pose.position.y - direction*init_dist;
+        push_state->setY(desired_y);
+
+        // if 0 -> push action not possible
+        direction = (state_checker_->isValid(push_state.get())) ? -1 : 0;
+    }
+
+    state_checker_->setIK(false);
+
+    if (direction == 0)
+    {
+        ROS_ERROR("[PLANNER]: Failed to get push action");
+        return false;
+    }
+
+    states.push_back(push_state);
+
+    for (int i = 0; i < objs.size(); i++)
+    {
+        util::CollisionGeometry other = objs[i];
+        if (other.name == geom.name) continue;
+
+        if (std::abs(other.pose.position.x - push_state->getX()) <= 0.02 &&
+            std::abs(other.pose.position.y - push_state->getY()) <= 0.1 &&
+            std::abs(other.pose.position.z - push_state->getZ()) <= 0.1)
+        {
+            std::cout << BLUE << "[PLANNER]: Skipping " << other.name << std::endl;
+            objs.erase(objs.begin() + i);
+        }
+    }
+
+    double push_dist = 0.1 + (init_dist - geom.dimension.y*0.5);
+    // push action
+    push_state->setY(desired_y + direction*(push_dist));
+    states.push_back(push_state);
+
+    // reset
+    direction = (goal_pos_.x() < 0) ? 1 : -1;
+    push_state->setX(geom.pose.position.x + (direction*0.1));
+    push_state->setY(goal_pos_.y());
+    states.push_back(push_state);
+
+    return true;
 }
