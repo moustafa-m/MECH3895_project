@@ -457,7 +457,7 @@ bool Planner::isObjectBlocked(std::vector<int>& idxs)
             collision_boxes_[i].name.find(target_geom_.name) != std::string::npos)
         { continue; }
 
-        if (std::abs(collision_boxes_[i].pose.position.y - goal_pos_.y()) < 0.15)
+        if (std::abs(collision_boxes_[i].pose.position.y - goal_pos_.y()) < 0.10)
         {
             if (std::abs(collision_boxes_[i].pose.position.x) - std::abs(goal_pos_.x()) < -0.05) idxs.push_back(i);
             clear = false;
