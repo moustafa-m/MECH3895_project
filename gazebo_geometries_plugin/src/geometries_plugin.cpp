@@ -1,5 +1,7 @@
 #include "gazebo_geometries_plugin/geometries_plugin.h"
 
+static int prev_num_models = 0;
+
 using namespace gazebo;
 
 GeometriesPlugin::GeometriesPlugin()
@@ -32,7 +34,6 @@ void GeometriesPlugin::Load(physics::WorldPtr _world, sdf::ElementPtr _sdf)
 
     this->initKinovaDimensions();
 
-    base_frame_id_ = robot_name_ + "_link_base";
     geometries_ns_ = "geometries";
 
     marker_pub_ = nh_->advertise<visualization_msgs::Marker>("/geometries_markers", 10);
@@ -108,6 +109,17 @@ void GeometriesPlugin::publishMarkers()
     std::vector<gazebo::physics::ModelPtr> models = world_->Models();
     if (models.empty()) return;
 
+    if (prev_num_models != models.size())
+    {
+        marker.action = visualization_msgs::Marker::DELETEALL;
+        marker.header.frame_id = "world";
+        marker.header.stamp = ros::Time::now();
+        marker.header.seq += 1;
+        marker_pub_.publish(marker);
+
+        prev_num_models = models.size();
+    }
+
     for (size_t i = 0; i < models.size(); i++)
     {
         if ((models[i]->GetName().find(robot_name_) != std::string::npos && !pub_arm_geom_) ||
@@ -148,7 +160,7 @@ void GeometriesPlugin::publishMarkers()
                 marker.pose = srv.response.pose[j];
                 marker.scale = srv.response.dimensions[j];
 
-                marker.header.frame_id = base_frame_id_;
+                marker.header.frame_id = "world";
                 marker.header.stamp = ros::Time::now();
                 marker.header.seq += 1;
                 marker.ns = geometries_ns_;

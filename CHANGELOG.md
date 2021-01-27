@@ -2,6 +2,94 @@
 
 Noteable/major changes will be listed here
 
+## 27th Jan 2021
+
+### Added
+
+- getPushAction() method in Planner class.
+- Computing push distances.
+- Planner now publishes sphere markers for final goal states for each sub-path.
+- Checks for objects directly behind the goal.
+
+### Modified
+
+- Workspace region (for blocking objects) y-dimension reduced to 0.1m.
+
+### 26th Jan 2021
+
+### Fixed
+
+- Gazebo geometries plugin using Kinova base frame as reference instead of world frame. Again, what was I thinking...
+- Gazebo geometries plugin not updating when deleting models without disabling the marker topic in Rviz and enabling it again.
+
+## 24th Jan 2021
+
+### Added
+
+- Integrated ROS params into Planner and Manipulator classes
+    - initParams() method for Manipulator class added
+    - If the display_path param is set to true but save_path is set to false, the path will still be saved but will be removed after it is plotted.
+- Overloaded == and != operators for CollisionGeometry struct
+
+### Modified
+
+- Changed default planner params.
+
+### Removed
+
+- setLimits() method in Manipulator class. Was completely unnecessary, don't know why I even implemented it?
+- waitForGazebo() method in node.cpp. It was redundant, so functionality is implemented in main() instead.
+- Error and Debug prints from solveIK() and solveFK() methods in Manipulator class. Errors will be handled with assert() and by user calling the method.
+
+## 14th Jan 2021
+
+### Added
+
+- getJointStates() method in Manipulator class
+- setTargetName(), setTargetCollision(), and setNonStaticCollision() methods for StateChecker class
+- setTargetGeometry(), isObjectBlocked(), and planInClutter() methods to Planner class
+- StateChecker can disable/enable checks for target and non-static object collisions using the previously mentioned methods
+- check for Gazebo node if starting planner node without Gazebo being launched first
+- prefixes to print messages to identify the class that printed it (e.g. [PLANNER]: for planner related code)
+- limited support for clutter clearing using push actions
+- Controller class checks for current state of Kinova (init and home position check, and gripper open/close checks)
+- templated functions approxEqual() and clamp() in util.h
+
+### Modified
+
+- Planner node uses ros::MultiThreadedSpinner with 3 threads instead of ros::spinOnce() with pre-defined rate
+- arm no longer moves to init when node starts. When a planning request is sent, the arm moves to the init position
+- StateChecker class integrated in Planner class to allow its use to check states without having to start planning a path
+- IK solver timeout reduced to 0.05s
+- Path markers are now coloured differently
+- Target marker is now shown with the same geometry as the object (i.e. it appears exactly like the object's collision geometry)
+
+### Removed
+
+- unused headers in planner.h
+- Kinova will not return to home by default after a successful planning attempt
+
+## 11th Jan 2021
+
+### Added
+
+- Launch file for the planner node
+
+### Modified
+
+- Changed parameters in [planner/params/params.yaml](planner/params/params.yaml). The parameters are now for the planner and kinematics solver but are not yet used in the node.
+
+## 10th Jan 2021
+
+### Modified
+
+- Moved Gazebo params file and rviz files to kinova_gazebo package. The planner package still retains the gazebo.launch file however it now just calls the robot_launch.h file in the kinova_gazebo package
+- Gazebo params file is now called gazebo_params.yaml
+
+### Removed
+
+- optimal_test.world and kinova.rviz files. (they were only used to test out functionality)
+
 ## 28th Dec 2020
 
 ### Added

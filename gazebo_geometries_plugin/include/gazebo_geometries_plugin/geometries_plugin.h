@@ -43,7 +43,6 @@ namespace gazebo
         physics::WorldPtr world_;
 
         std::string geometries_ns_;
-        std::string base_frame_id_;
 
         std::vector<std::string> static_objs_;
         std::string robot_name_;

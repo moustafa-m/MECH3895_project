@@ -55,4 +55,6 @@ private:
 
     gazebo_msgs::ModelStates states_;
     std::vector<util::CollisionGeometry> collision_geometries_;
+    
+    bool gripper_open_;
 };

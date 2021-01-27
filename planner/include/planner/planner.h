@@ -14,12 +14,9 @@
 #include <ompl/base/spaces/SE3StateSpace.h>
 
 #include <ompl/geometric/planners/rrt/RRTstar.h>
-#include <ompl/geometric/planners/rrt/InformedRRTstar.h>
-#include <ompl/geometric/planners/bitstar/BITstar.h>
 #include <ompl/geometric/planners/kpiece/KPIECE1.h>
-#include <ompl/geometric/planners/fmt/FMT.h>
 #include <ompl/geometric/planners/fmt/BFMT.h>
-#include <ompl/geometric/SimpleSetup.h>
+#include <ompl/geometric/PathSimplifier.h>
 
 #include "state_validity.h"
 #include "util.h"
@@ -39,6 +36,7 @@ public:
     void setStart(const Eigen::Vector3d& start, const Eigen::Quaterniond& orientation);
     void setGoal(const Eigen::Vector3d& goal, const Eigen::Quaterniond& orientation);
     void setCollisionGeometries(const std::vector<util::CollisionGeometry>& collision_boxes);
+    void setTargetGeometry(util::CollisionGeometry geom);
     void savePath();
     void clearMarkers();
 
@@ -46,20 +44,37 @@ private:
     void init();
     void initROS();
     bool generateTrajectory(trajectory_msgs::JointTrajectory& traj);
-    void publishGoalMarker(const Eigen::Vector3d& goal);
+    void publishGoalMarker();
     void publishMarkers();
+    bool isObjectBlocked(std::vector<int>& idxs);
+    void planInClutter(std::vector<int> idxs, std::vector<ob::ScopedState<ob::SE3StateSpace>>& states);
+    bool getPushAction(std::vector<ob::ScopedState<ob::SE3StateSpace>>& states, std::vector<util::CollisionGeometry>& objs,
+        const util::CollisionGeometry& geom);
 
     ros::NodeHandle nh_;
     ros::Publisher marker_pub_;
 
+    bool save_path_;
+    bool display_path_;
+    int timeout_;
+    int path_states_;
+    std::string planner_name_;
+
     Manipulator* manipulator_;
 
     double plan_time_;
+    util::CollisionGeometry target_geom_;
 
+    std::vector<std::string> static_objs_;
     std::vector<util::CollisionGeometry> collision_boxes_;
+    std::vector<og::PathGeometric> solutions_;
+    
+    Eigen::Vector3d goal_pos_;
+    Eigen::Quaterniond goal_orient_;
 
 	ob::StateSpacePtr space_;
 	ob::SpaceInformationPtr si_;
 	ob::ProblemDefinitionPtr pdef_;
     ob::PlannerPtr planner_;
+    std::shared_ptr<StateChecker> state_checker_;
 };

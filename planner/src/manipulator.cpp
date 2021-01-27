@@ -3,14 +3,10 @@
 Manipulator::Manipulator(ros::NodeHandle* nh)
     : nh_(*nh)
 {
-    ros::param::param<std::string>("/robot_name", name_, "j2s7s300");
-    
-    ROS_INFO("%sRobot name set to %s", BLUE, name_.c_str());
-    
+    this->initParams();
     this->setJointsInfo();
     this->initSolvers();
     this->setDefaultPoses();
-    this->setLimits();
     this->setDHParameters();
 
     joints_sub_ = nh_.subscribe("/" + name_ +"/joint_states", 10, &Manipulator::jointStatesCallback, this);
@@ -25,53 +21,17 @@ Manipulator::~Manipulator()
 bool Manipulator::solveIK(std::vector<double>& output, const Eigen::Vector3d& position, const Eigen::Quaterniond& orientation,
     const std::vector<double>& prev_joints)
 {
-    #ifdef DEBUG
-    std::cout << MAGENTA << "-----\n[DEBUG]\nCurrent angles: {";
-    for (int i = 0; i < num_joints_; i++) { std::cout << joint_states_.position[i] << " "; }
-    std::cout << "}" << std::endl;
-
-    std::cout << MAGENTA << "Prev angles: {";
-    for (int i = 0; i < num_joints_; i++) { std::cout << prev_joints[i] << " "; }
-    std::cout << "}" << NC << std::endl;
-    #endif
-
+    assert(prev_joints.size() == num_joints_ && "prev_joints vector size != num_joints!");
     KDL::JntArray current_states(num_joints_), out(num_joints_);
     for (int i = 0; i < num_joints_; i++) { current_states(i) = prev_joints[i]; }
-
-    #ifdef DEBUG
-    double r, p, y;
-    
-    std::vector<Eigen::Vector3d> prev_pos; std::vector<Eigen::Quaterniond> prev_orients;
-    this->solveFK(prev_pos, prev_orients, prev_joints);
-    KDL::Rotation m = KDL::Rotation::Quaternion(prev_orients.back().x(), prev_orients.back().y(), prev_orients.back().z(),
-                prev_orients.back().w());
-    m.GetRPY(r, p, y);
-
-    std::cout << MAGENTA << "-----\n[DEBUG]\n-----\nEnd effector prev Pose: \nPos: {" << prev_pos.back().x()
-            << ", " << prev_pos.back().y() << ", " << prev_pos.back().z() <<
-            "}\nRPY: {" << r << ", " << p << ", " << y << "}\n-----" << NC << std::endl;
-    #endif
 
     KDL::Frame end_effector_pose;
     end_effector_pose.M = KDL::Rotation::Quaternion(orientation.x(), orientation.y(), orientation.z(), orientation.w());
     end_effector_pose.p[0] = position[0]; end_effector_pose.p[1] = position[1]; end_effector_pose.p[2] = position[2];
-    
-    #ifdef DEBUG
-    end_effector_pose.M.GetRPY(r, p, y);
-    std::cout << MAGENTA << "[DEBUG]\n-----\nEnd Effector desired Pose: \n" << "Pos: {" << end_effector_pose.p[0]
-            << ", " << end_effector_pose.p[1] << ", " << end_effector_pose.p[2] << "}\nRPY: {" << r << ", "
-            << p << ", " << y << "}\n-----" << NC << std::endl;
-    #endif
 
     int success = ik_solver_->CartToJnt(current_states, end_effector_pose, out);
 
-    if (success < 0)
-    {
-        ROS_ERROR_STREAM(RED << "-----\nFailed to obtain IK solution!\nFailed for state:\n"<< "Pos: {" << end_effector_pose.p[0]
-            << ", " << position[0] << ", " << position[1] << "}\nQuaternion: {" << position[2] << ", "
-            << orientation.y() << ", " << orientation.z() << ", " << orientation.w() << "}\n-----" << NC << std::endl);
-        return false;
-    }
+    if (success < 0) { return false; }
 
     output.resize(num_joints_);
     for (int i = 0; i < num_joints_; i++) { output[i] = out(i); }
@@ -108,16 +68,17 @@ bool Manipulator::solveFK(std::vector<Eigen::Vector3d>& positions, std::vector<E
         poses[i+1].M.GetQuaternion(orientations[i].x(), orientations[i].y(), orientations[i].z(), orientations[i].w());
     }
 
-    #ifdef DEBUG
-    std::cout << MAGENTA << "-----\n[DEBUG]\n-----\nend effector position:\n" << positions.back() << "\nend effector orientation:\n"
-            << orientations.back().coeffs() << "\n------" << NC << std::endl;
-    #endif
     return true;
 }
 
 std::string Manipulator::getName()
 {
     return name_;
+}
+
+sensor_msgs::JointState Manipulator::getJointStates()
+{
+    return joint_states_;
 }
 
 int Manipulator::getNumJoints()
@@ -145,6 +106,22 @@ std::vector<double> Manipulator::getInitPose()
     return init_pose_;
 }
 
+void Manipulator::initParams()
+{
+    int type;
+    ros::param::param<int>("~kinematics_solver/type", type, 0);
+    ros::param::param<double>("~kinematics_solver/timeout", timeout_, 0.005);
+    ros::param::param<std::string>("/robot_name", name_, "j2s7s300");
+
+    solve_type_ = static_cast<TRAC_IK::SolveType>(type);
+
+    ROS_INFO("%s*****MANIPULATOR PARAMS******", BLUE);
+    ROS_INFO_STREAM(BLUE << "solve_type\t: " << type);
+    ROS_INFO_STREAM(BLUE << "timeout\t\t: " << timeout_);
+    ROS_INFO_STREAM(BLUE << "robot_name\t: " << name_);
+    ROS_INFO("%s*****************************", BLUE);
+}
+
 void Manipulator::setJointsInfo()
 {
     if (name_.compare("j2n6s300") == 0 || name_.compare("j2s6s300") == 0) { num_joints_ = 6; }
@@ -164,19 +141,19 @@ void Manipulator::initSolvers()
     std::string chain_start, chain_end;
     chain_start = name_ + "_link_base";
     chain_end = name_ + "_end_effector";
-    ik_solver_ = new TRAC_IK::TRAC_IK(chain_start, chain_end, "/robot_description", 0.1, 1e-3, TRAC_IK::Distance);
+    ik_solver_ = new TRAC_IK::TRAC_IK(chain_start, chain_end, "/robot_description", timeout_, 1e-3, solve_type_);
 
     bool valid = ik_solver_->getKDLChain(chain_);
     if (!valid)
     {
-        ROS_ERROR("Invalid kinematic chain!");
+        ROS_ERROR("[MANIPULATOR]: Invalid kinematic chain!");
         exit(-1);
     }
 
     valid = ik_solver_->getKDLLimits(kdl_lower_b_, kdl_upper_b_);
     if (!valid)
     {
-        ROS_ERROR("Invalid upper and lower bounds!");
+        ROS_ERROR("[MANIPULATOR]: Invalid upper and lower bounds!");
         exit(-1);
     }
 
@@ -223,17 +200,6 @@ void Manipulator::setDefaultPoses()
     }
 }
 
-void Manipulator::setLimits()
-{
-    upper_bounds_.resize(num_joints_); lower_bounds_.resize(num_joints_);
-
-    for (int i = 0; i < num_joints_; i++)
-    {
-        upper_bounds_[i] = kdl_upper_b_.data[i];
-        lower_bounds_[i] = kdl_lower_b_.data[i];
-    }
-}
-
 void Manipulator::setDHParameters()
 {
     dh_para_.alpha.resize(num_joints_);
@@ -249,6 +215,8 @@ void Manipulator::setDHParameters()
         transform_ << 1, 0, 0,
                     0, 1, 0,
                     0, 0, 1;
+
+        return;
     }
     else if (name_.compare("j2s6s300") == 0)
     {

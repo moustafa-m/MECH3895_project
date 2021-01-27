@@ -28,16 +28,17 @@ public:
     bool solveFK(std::vector<Eigen::Vector3d>& positions, std::vector<Eigen::Quaterniond>& orientations, const std::vector<double>& joints_pos = {});
     std::string getName();
     int getNumJoints();
+    sensor_msgs::JointState getJointStates();
     std::vector<std::string> getJointNames();
     std::vector<std::string> getFingerNames();
     std::vector<double> getHomePose();
     std::vector<double> getInitPose();
 
 private:
+    void initParams();
     void setJointsInfo();
     void initSolvers();
     void setDefaultPoses();
-    void setLimits();
     void setUpperBounds();
     void setLowerBounds();
     void setDHParameters();
@@ -52,6 +53,9 @@ private:
     std::string name_ = "j2s7s300";
 
     TRAC_IK::TRAC_IK* ik_solver_;
+    TRAC_IK::SolveType solve_type_;
+    double timeout_;
+
     KDL::ChainFkSolverPos_recursive* fk_solver_;
     KDL::Chain chain_;
     KDL::JntArray kdl_lower_b_, kdl_upper_b_;
@@ -64,9 +68,6 @@ private:
 
     std::vector<double> home_pose_;
     std::vector<double> init_pose_;
-
-    std::vector<double> upper_bounds_;
-    std::vector<double> lower_bounds_;
 
     std::vector<std::string> joint_names_;
     std::vector<std::string> finger_names_;

@@ -1,7 +1,0 @@
-<launch>
-
-    <node name="simple_traj_node"   type="simple_traj_node" pkg="simple_traj" output="screen" >
-        <rosparam file="$(find simple_traj)/params/params.yaml" command="load" />
-    </node>
-    
-</launch>
