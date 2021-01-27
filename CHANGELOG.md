@@ -2,6 +2,19 @@
 
 Noteable/major changes will be listed here
 
+## 27th Jan 2021
+
+### Added
+
+- getPushAction() method in Planner class.
+- Computing push distances.
+- Planner now publishes sphere markers for final goal states for each sub-path.
+- Checks for objects directly behind the goal.
+
+### Modified
+
+- Workspace region (for blocking objects) y-dimension reduced to 0.1m.
+
 ### 26th Jan 2021
 
 ### Fixed
