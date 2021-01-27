@@ -34,7 +34,7 @@ bool Planner::plan(trajectory_msgs::JointTrajectory& traj)
     }
 
     // now check if the object is blocked by non-static objects, if it is not, then the inital obtained path is used
-    // this check is skipped if the arm needs to reset its pose
+    // this check is skipped if the arm needs to reset its pose, which is determined by an empty target name
     std::vector<int> blocking_objs;
     if (!this->isObjectBlocked(blocking_objs) && !target_geom_.name.empty())
     {
@@ -46,7 +46,6 @@ bool Planner::plan(trajectory_msgs::JointTrajectory& traj)
         state_checker_->setNonStaticCollisions(false);
 
         pdef_->clearSolutionPaths();
-        planner_->clear();
 
         t_start = HighResClk::now();
         
@@ -94,6 +93,7 @@ bool Planner::plan(trajectory_msgs::JointTrajectory& traj)
         pdef_->getSolutionPath()->as<og::PathGeometric>()->interpolate(path_states_);
         
         solutions_.push_back(*pdef_->getSolutionPath()->as<og::PathGeometric>());
+        this->publishMarkers();
     }
 
     std::cout << GREEN << "[PLANNER]: Solution found!\n";
@@ -103,7 +103,7 @@ bool Planner::plan(trajectory_msgs::JointTrajectory& traj)
     plan_time_ = duration;
 
     if (save_path_ || display_path_) { this->savePath(); }
-    this->publishMarkers();
+
     return this->generateTrajectory(traj);
 }
 
@@ -255,8 +255,8 @@ void Planner::init()
     pdef_ = ob::ProblemDefinitionPtr(new ob::ProblemDefinition(si_));
     pdef_->setOptimizationObjective(ob::OptimizationObjectivePtr(new ob::PathLengthOptimizationObjective(si_)));
 
-    if (planner_name_.compare("RRTStar") == 0) { planner_ = ob::PlannerPtr(new og::RRTstar(si_)); }
-    else if (planner_name_.compare("BFMT") == 0) { planner_ = ob::PlannerPtr(new og::BFMT(si_)); }
+    if (planner_name_ == "RRTStar") { planner_ = ob::PlannerPtr(new og::RRTstar(si_)); }
+    else if (planner_name_ == "BFMT") { planner_ = ob::PlannerPtr(new og::BFMT(si_)); }
     else { planner_ = ob::PlannerPtr(new og::KPIECE1(si_)); planner_->setup(); }    
 }
 
@@ -334,7 +334,11 @@ bool Planner::generateTrajectory(trajectory_msgs::JointTrajectory& traj)
         else { success = manipulator_->solveIK(angles, position, orientation, traj.points[i-1].positions); }
 
         if (success) { traj.points[i].positions = angles; }
-        else { return false; }
+        else
+        {
+            std::cout << RED << "[PLANNER]: IK solver failed for: \npos: { " << position << " }\nquat: { " << orientation.coeffs() << " }" << std::endl;
+            return false;
+        }
         
         for (int j = 0; j < num_joints; j++)
         {
@@ -475,7 +479,6 @@ bool Planner::isObjectBlocked(std::vector<int>& idxs)
 
 void Planner::planInClutter(std::vector<int> idxs, std::vector<ob::ScopedState<ob::SE3StateSpace>>& states)
 {
-    int direction;
     ob::ScopedState<ob::SE3StateSpace> state(space_);
     state = pdef_->getStartState(0);
 
@@ -491,34 +494,34 @@ void Planner::planInClutter(std::vector<int> idxs, std::vector<ob::ScopedState<o
         }
         std::cout << "}" << std::endl;
 
-        std::sort(objects.begin(), objects.end(), [](util::CollisionGeometry lhs, util::CollisionGeometry rhs)
+        // sort by increasing x values
+        std::sort(objects.begin(), objects.end(), [](const util::CollisionGeometry& lhs, const util::CollisionGeometry& rhs)
             { return std::abs(lhs.pose.position.x) < std::abs(rhs.pose.position.x); });
         
         // checks for objects that are close together, these objects can be pushed using one action
         for (int i = 0; i < objects.size(); i++)
         {
+            if (objects[i].name.find("_merged") != std::string::npos) continue;
+            util::CollisionGeometry orig = objects[i];
+
             for (int j = 0; j < objects.size(); j++)
             {
-                if (objects[i].name.compare(objects[j].name) == 0) continue;
-                
-                bool intersect = (objects[i].min.x < objects[j].max.x) || (objects[i].max.x > objects[j].min.x);
+                if (orig.name == objects[j].name || objects[j].name.find("_merged") != std::string::npos) continue;
+          
+                bool intersect = (orig.min.x < objects[j].max.x) && (orig.max.x > objects[j].min.x);
 
-                if (std::abs((objects[i].pose.position.x + objects[i].dimension.x) - (objects[j].pose.position.x + objects[j].dimension.x)) <= 0.1 &&
-                    std::abs(objects[i].pose.position.y - objects[j].pose.position.y) <= 0.3)
-                // if (intersect)
+                if (intersect)
                 {
-                    objects[j].dimension.y += objects[i].dimension.y;
+                    objects[j].name += "_merged";
+                    objects[j].dimension.y += orig.dimension.y;
 
-                    objects[j].pose.position.x = (objects[i].pose.position.x + objects[j].pose.position.x)/2;
-                    objects[j].pose.position.y = (objects[i].pose.position.y + objects[j].pose.position.y)/2;
+                    objects[j].pose.position.x = (orig.pose.position.x + objects[j].pose.position.x)/2;
+                    objects[j].pose.position.y = (orig.pose.position.y + objects[j].pose.position.y)/2;
                     
-                    std::cout << BLUE << "[PLANNER]: merging " << objects[j].name << " with " << objects[i].name
+                    std::cout << BLUE << "[PLANNER]: merging " << objects[j].name << " with " << orig.name
                             << "\nNew object dimension: " << objects[j].dimension.y << NC << std::endl;
 
-                    // the object that is furthest in the y-axis is the wanted object
                     objects.erase(objects.begin() + i); 
-                    
-                    // break;
                 }
             }
         }
