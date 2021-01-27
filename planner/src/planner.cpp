@@ -584,7 +584,6 @@ void Planner::planInClutter(std::vector<int> idxs, std::vector<ob::ScopedState<o
 bool Planner::getPushAction(std::vector<ob::ScopedState<ob::SE3StateSpace>>& states, std::vector<util::CollisionGeometry>& objs,
     const util::CollisionGeometry& geom)
 {
-    state_checker_->setIK(true);
     double init_dist = (1.5*geom.dimension.y) + 0.05;
     int direction = (geom.pose.position.y > target_geom_.pose.position.y) ? 1 : -1;
 
@@ -607,8 +606,6 @@ bool Planner::getPushAction(std::vector<ob::ScopedState<ob::SE3StateSpace>>& sta
         // if 0 -> push action not possible
         direction = (state_checker_->isValid(push_state.get())) ? -1 : 0;
     }
-
-    state_checker_->setIK(false);
 
     if (direction == 0)
     {
