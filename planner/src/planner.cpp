@@ -553,6 +553,8 @@ void Planner::planInClutter(std::vector<int> idxs, std::vector<ob::ScopedState<o
     bool obj_behind = false;
     for (int i = 0; i < collision_boxes_.size(); i++)
     {
+        if (collision_boxes_[i].name == target_geom_.name) continue;
+        
         if (std::abs(collision_boxes_[i].pose.position.y - goal_pos_.y()) < 0.03 &&
             std::abs(collision_boxes_[i].pose.position.x) - std::abs(goal_pos_.x()) <= 0.05)
         {
