@@ -1,7 +1,9 @@
 - [ ] Add checks for static objects when planning to clear a path
-    - [ ] for pushing actions
+    - [x] for pushing actions
     - [ ] for grasping actions
 - [ ] Consider objects that are not blocking the object but may block the arm while clearing a path to reach the object
+    - [x] objects directly behind goal 
+    - [ ] objects outside defined workspace
 - [ ] Add grasping as a clutter clearing action
 - [ ] Implement a struct for each action which includes the states needed to perform that action and the action type
 - [ ] Implement adjustments for object pose probability in cluttered areas
