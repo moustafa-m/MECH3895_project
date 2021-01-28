@@ -4,11 +4,11 @@
   <version>0.0.0</version>
   <description>The planner_proj package</description>
 
-  
-  <maintainer email="el17m3m@leeds.ac.uk">Moustafa Motawei</maintainer>
-
+  <maintainer email="mustafa.motawei@gmail.com">Moustafa Motawei</maintainer>
 
   <license>TODO</license>
+
+  <author email="mustafa.motawei@gmail.com">Moustafa Motawei</author>
 
 
   <buildtool_depend>catkin</buildtool_depend>
