@@ -30,7 +30,7 @@ void SceneRandomiser::Load(physics::WorldPtr _world, sdf::ElementPtr _sdf)
     ROS_INFO("%sSceneRandomiser: Plugin loaded!", GREEN);
 }
 
-bool SceneRandomiser::checkCollision(ignition::math::v4::Pose3d& pose, physics::ModelPtr model, physics::ModelPtr surface)
+bool SceneRandomiser::checkCollision(ignition::math::v4::Pose3d& pose, physics::ModelPtr model, physics::ModelPtr parent)
 {
     std::vector<physics::ModelPtr> models = world_->Models();
 
@@ -51,7 +51,7 @@ bool SceneRandomiser::checkCollision(ignition::math::v4::Pose3d& pose, physics::
     for (int i = 0; i < models.size(); i++)
     {
         if (models[i] == model ||
-            models[i] == surface ||
+            models[i] == parent ||
             models[i]->GetName() == "ground_plane" ||
             models[i]->GetName() == "sun" ||
             models[i]->GetName() == robot_name_)
