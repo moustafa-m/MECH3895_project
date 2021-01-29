@@ -237,7 +237,7 @@ Noteable/major changes will be listed here
 - Re-enable Gazebo grasp plugin
 - Add world argument for gazebo.launch
 - Gazebo worlds now include collision geometries plugin
-- Reduce P gain for j2s6s300 and j2n6s300 joint 6
+- Reduce P gain for j2s6s300 joint 6
 
 ### Removed
 
