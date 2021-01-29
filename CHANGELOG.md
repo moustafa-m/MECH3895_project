@@ -2,6 +2,18 @@
 
 Noteable/major changes will be listed here
 
+## 29th Jan 2021
+
+### Added
+
+- Created a Gazebo plugin, gazebo_scene_randomiser_plugin, to randomise objects in the world on a given surface.
+- Success bool for geometries plugin srv. This allows to detect failures without the service returning false which doesn't necessarily indicate failure to find a model.
+- README for geometries plugin.
+
+### Modified
+
+- Updated repo README. ToC, Running instructions, dependencies etc.
+
 ## 27th Jan 2021
 
 ### Added
@@ -225,7 +237,7 @@ Noteable/major changes will be listed here
 - Re-enable Gazebo grasp plugin
 - Add world argument for gazebo.launch
 - Gazebo worlds now include collision geometries plugin
-- Reduce P gain for j2s6s300 and j2n6s300 joint 6
+- Reduce P gain for j2s6s300 joint 6
 
 ### Removed
 

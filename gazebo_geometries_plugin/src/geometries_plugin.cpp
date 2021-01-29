@@ -282,10 +282,8 @@ bool GeometriesPlugin::getGeometrySrv(gazebo_geometries_plugin::geometry::Reques
         ROS_ERROR("GeometriesPlugin: Unable to find [%s]! Model does not exist", req.model_name.c_str());
 
         res.message = "Error, model does not exist!";
-        geometry_msgs::Vector3 size;
-        // size.x = size.y = size.z = NAN;
-        // res.min_bounds = res.max_bounds = size;
-        return false;
+        res.success = false;
+        return true;
     }
 
     // ROS_INFO("%sGeometriesPlugin: Found %d child links for [%s]", GREEN, model->GetChildCount(), req.model_name.c_str());
@@ -329,6 +327,7 @@ bool GeometriesPlugin::getGeometrySrv(gazebo_geometries_plugin::geometry::Reques
     }
     
     res.message = "GeomtriesPlugin: Model found!";
+    res.success = true;
     // ROS_INFO("%sGeometriesPlugin: Obtained collision geometries for [%s]", GREEN, req.model_name.c_str());
 
     return true;

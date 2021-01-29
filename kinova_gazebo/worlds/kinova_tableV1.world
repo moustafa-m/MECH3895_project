@@ -1,5 +1,7 @@
 <sdf version='1.6'>
   <world name='default'>
+    <plugin name='gazebo_geometries_plugin' filename='libgazebo_geometries_plugin.so'/>
+    <plugin name='libgazebo_scene_randomiser_plugin' filename='libgazebo_scene_randomiser_plugin.so'/>
     <model name='ground_plane'>
       <static>1</static>
       <link name='link'>
@@ -623,7 +625,6 @@
         <pose frame=''>0 0 10 0 -0 0</pose>
       </light>
     </state>
-    <plugin name='gazebo_geometries_plugin' filename='libgazebo_geometries_plugin.so'/>
     <model name='wood_cube_7_5cm'>
       <link name='link'>
         <pose frame=''>0 0 0.0375 0 -0 0</pose>
