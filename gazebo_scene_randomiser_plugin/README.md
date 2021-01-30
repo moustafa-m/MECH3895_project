@@ -1,16 +1,16 @@
 # Gazebo Scene Randomiser Plugin
-A plugin to randomise objects in the world on a given surface. Objects that are labelled static by Gazebo are unaffected.
+A plugin to randomise objects in the world on a given surface. Objects that have the ```static``` attribute enabled in Gazebo are unaffected, you can determine this by selecting a model and checking the left-side panel for the ```static``` attribute.
 
 This plugin was developed while working on a 3rd Year Project at the University of Leeds for manipulation planning in cluttered environments.
 
-Users interface with the plugin is through a ROS service. The plugin takes in the name of a collision link (the surface) and randomises all the pose of all the 
+User's interface with the plugin is through a ROS service. The plugin takes in the name of a collision link (the surface) and randomises the pose of all the 
 objects in the world on that surface. For position, the x and y values are changed, and for rotation, the z-axis rotation (yaw) is changed.
 
 **IMPORTANT:** Make the surface has its z-axis aligned with the world z-axis and has the same direction. The surface yaw can be changed, but roll and pitch must be zero.
 
 The robot name must be set as a parameter on ```/robot_name``` so that the plugin can avoid changing the robot pose.
 
-To include this plugin in a Gazebo world, you will need to include it in the .world file inside the ```<world>``` tag.
+To include this plugin in a Gazebo world, you will need to include it in the .world file inside the ```<world>``` tag.  
 As an example:
 ```
 <world>

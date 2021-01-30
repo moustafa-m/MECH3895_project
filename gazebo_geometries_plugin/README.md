@@ -5,9 +5,9 @@ This plugin was developed while working on a 3rd Year Project at the University 
 
 If a model is requested, a vector containing geometries for all its collision links is returned. If a collision link is requested, a vector of size 1 is returned with only the geometry for that collision link.
 
-The boxes are either Object Oriented Bounding Boxes (OOBB) or Axis Aligned Bounding Boxes (AABB). OOBBs are obtained for box and cylinder shaped objects and collision links, any other shape is treated as an AABB. It should be noted that the service returns enough information to allow the user compute the AABB for the OOBB as well if needed.
+The boxes are either Object Oriented Bounding Boxes (OOBB) or Axis Aligned Bounding Boxes (AABB). OOBBs are obtained for box and cylinder shaped objects and collision links, any other shape is treated as an AABB. It should be noted that the service returns enough information to allow the user to compute the AABB for the OOBB as well if needed.
 
-To include this plugin in a Gazebo world, you will need to include it in the .world file inside the ```<world>``` tag.
+To include this plugin in a Gazebo world, you will need to include it in the .world file inside the ```<world>``` tag.  
 As an example:
 ```
 <world>
@@ -25,7 +25,7 @@ The package will still work as normal without the need to spawn the arms in Gaze
 
 The plugin publishes the geometries as visualisation markers on the topic ```/geometries_markers```.
 
-There is a parameter, ```/gazebo/static_objs```, that can be set to visualise static objects (shown as red). It is a vector of strings of model names that are regarded as static. All geometries are displayed green unless they are specified as static.
+There is a parameter, ```/gazebo/static_objs```, that can be set to visualise static objects (shown as red). It is a vector of strings of model names that are regarded as static, these are not related to the ```static``` attribute within Gazebo. All geometries are displayed green unless they are specified as static.
 
 Another parameter, ```/gazebo/pub_arm_geom```, can be set to visualise the Kinova collision boxes on the same topic as the other geometries.
 
@@ -45,6 +45,7 @@ Replace ```name``` with the name of an object or collision link in the Gazebo wo
 
 the returned variables are as follows:
 
+- ```bool success``` - false if plugin is unable to find the requested model.
 - ```string message``` - status message, it was added mainly if the service is being used through a command line.
 - ```string[] name``` - the link name that the collision box corresponds to.
 - ```geometry_msgs/Vector3[] min_bounds``` - minimum bounds of the box in X, Y, & Z. This essentially is the AABB minimum coordinates.
