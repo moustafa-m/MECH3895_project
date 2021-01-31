@@ -1,4 +1,5 @@
 .vscode/
 planner/paths/*
+planner/test/logs/*
 !planner/paths/*.sh
 !planner/paths/*.py
