@@ -1,4 +1,3 @@
-#include "planner/controller.h"
 #include "planner/planner.h"
 
 bool checkGazeboIsUp()
@@ -23,8 +22,8 @@ int main(int argc, char** argv)
     }
 
     ROS_INFO("%sGazebo is up! Starting...", GREEN);
-    
-    Controller controller(&nh);
+
+    Planner planner(&nh);
     ros::MultiThreadedSpinner spinner(3);
     spinner.spin();
 
