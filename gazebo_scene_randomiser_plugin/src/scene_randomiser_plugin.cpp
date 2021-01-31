@@ -159,7 +159,7 @@ bool SceneRandomiser::randomiseSrvCallback(gazebo_scene_randomiser_plugin::rando
         res.message = "Surface shape not supported";
         res.success = false;
         ROS_ERROR("[SceneRandomiser]: Unsupported surface shape!");   
-        return false;
+        return true;
     }
 
     std::vector<physics::ModelPtr> models = world_->Models();
