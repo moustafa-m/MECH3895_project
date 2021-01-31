@@ -290,7 +290,7 @@ void Planner::initROS()
     for (int i = 0; i < static_objs_.size(); i++) { ss << static_objs_[i] << " "; }
     ROS_INFO_STREAM(BLUE << "Static Objs\t: " << ss.str());
     ROS_INFO_STREAM(BLUE << "name\t\t: " << planner_name_);
-    ROS_INFO_STREAM(BLUE << "timeout\t\t: " << timeout_);
+    ROS_INFO_STREAM(BLUE << "timeout\t: " << timeout_);
     ROS_INFO_STREAM(BLUE << "path_states\t: " << path_states_);
     ROS_INFO_STREAM(BLUE << "save_path\t: " << std::boolalpha << save_path_);
     ROS_INFO_STREAM(BLUE << "display_path\t: " << std::boolalpha << display_path_);
