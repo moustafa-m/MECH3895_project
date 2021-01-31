@@ -769,22 +769,50 @@ bool Planner::startPlanSrvCallback(planner::start_plan::Request& req, planner::s
 
     if (success)
     {
+        res.path_found = success;
+        res.plan_time = plan_time_;
+
         trajectory_msgs::JointTrajectory traj;
 
         if (!this->generateTrajectory(traj))
         {
+            res.path_valid = res.grasp_success = false;
             ROS_ERROR("[PLANNER]: Solution path found but is not kinematically valid!");
             res.message = "Solution path found but is not kinematically valid!";
             return true;
         }
 
+        res.path_valid = true;
+
         controller_.sendAction(traj);
         controller_.closeGripper();
+
+        // verify grasp attempt
+        std::vector<Eigen::Vector3d> positions;
+        std::vector<Eigen::Quaterniond> orientations;
+        manipulator_.solveFK(positions, orientations);
+        this->update();
+        if (positions.back()[0] - target_geom_.pose.position.x >= -2e-2 &&
+            std::abs(positions.back()[1] - target_geom_.pose.position.y) <= 2e-2)
+        {
+            ROS_INFO("%s[PLANNER]: Grasp attempt successful!", GREEN);
+            res.grasp_success = true;
+            res.message = "Solution found and grasp attempt was successful!";
+        }
+        else
+        {
+            ROS_ERROR("[PLANNER]: Grasp attempt failed!");
+            res.grasp_success = false;
+            res.message = "Solution found but grasp attempt failed!";
+        }
     }
     else
     {
-        ROS_ERROR("[PLANNER]: unable to find solution");
+        res.path_found = res.path_valid = res.grasp_success = false;
+        res.plan_time = plan_time_;
         res.message = "Unable to find solution!";
+
+        ROS_ERROR("[PLANNER]: unable to find solution");
     }
 
     return true;
