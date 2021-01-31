@@ -34,6 +34,7 @@ find_package(catkin REQUIRED COMPONENTS
   sensor_msgs
   trac_ik_lib
   gazebo_geometries_plugin
+  gazebo_scene_randomiser_plugin
 )
 
 find_package(gazebo REQUIRED)
@@ -64,7 +65,7 @@ generate_messages(
 catkin_package(
   INCLUDE_DIRS include
 #  LIBRARIES planner
- CATKIN_DEPENDS roscpp trajectory_msgs control_msgs actionlib_msgs trac_ik_lib gazebo_geometries_plugin
+ CATKIN_DEPENDS roscpp trajectory_msgs control_msgs actionlib_msgs trac_ik_lib gazebo_geometries_plugin gazebo_scene_randomiser_plugin
 #  DEPENDS system_lib
 )
 
@@ -90,4 +91,11 @@ target_link_libraries(planner_node
   ${GAZEBO_LIBRARIES}
   fcl
   Eigen3::Eigen
+)
+
+add_executable(tester test/tester.cpp)
+add_dependencies(tester ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(tester
+  ${catkin_LIBRARIES}
+  ${GAZEBO_LIBRARIES}
 )
