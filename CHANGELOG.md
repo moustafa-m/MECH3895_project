@@ -2,6 +2,25 @@
 
 Noteable/major changes will be listed here
 
+## 31st Jan 2021
+
+### Added
+
+- modelStatesCallback(), startPlanSrvCallback(), and update() methods in Planner class. The update functions updates the collision boxes and goal state.
+- path_found, path_valid, grasp_sucess booleans, and plan_time to start_plan service.
+- Testing node to automate planner testing and logging data recieved from the service call.
+- Planner grasp attempt verification (i.e. grasp successful or not).
+
+### Modified
+
+- Planner class is now the main interfacing classs. It includes all other classes as members.
+- plan() method now takes no parameters.
+- planning time is now saved in seconds as a float64 variable.
+
+### Removed
+
+- statesCallback(), startPlanSrv(), and getCollisionBoxes() from Controller class, functionality moved to Planner class.
+
 ## 29th Jan 2021
 
 ### Added
