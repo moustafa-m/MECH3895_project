@@ -1,3 +1,7 @@
 string target
 ---
 string message
+bool path_found
+bool path_valid
+bool grasp_success
+float64 plan_time
