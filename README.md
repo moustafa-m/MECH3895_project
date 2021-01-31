@@ -100,14 +100,13 @@ $ roslaunch planner gazebo.launch
 A Gazebo and Rviz windows should popup.
 
 If desired, you can pass in a world argument to launch a different scene from the [worlds](kinova_gazebo/worlds) folder. The default is ```kinova_tableV1```.
-
-**NOTE:** if Gazebo models need to be installed, Gazebo node may not launch correctly. Gazebo will take some time to load as it is downloading required models, once loaded the arm will probably just fall due to controller timeout. Resolved by relaunching after Gazebo finishes downloading models and loads up.  
-
-### Planner
 ```
 $ roslaunch planner gazebo.launch world:=kinova_tableV2
 ```
 
+**NOTE:** if Gazebo models need to be installed, Gazebo node may not launch correctly. Gazebo will take some time to load as it is downloading required models, once loaded the arm will probably just fall due to controller timeout. Resolved by relaunching after Gazebo finishes downloading models and loads up.  
+
+### Planner
 Finally, run the planner using:
 
 ```
