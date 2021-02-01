@@ -30,7 +30,7 @@ namespace og = ompl::geometric;
 class Planner
 {
 public:
-    Planner(ros::NodeHandle* nh, Manipulator* manip);
+    Planner(ros::NodeHandle* nh);
     ~Planner();
 
     bool plan();
