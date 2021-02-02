@@ -4,9 +4,10 @@
 #include <gazebo_scene_randomiser_plugin/randomise.h>
 #include <gazebo_msgs/ModelStates.h>
 #include <gazebo_msgs/SetModelState.h>
+#include <ros/ros.h>
 #include <ros/package.h>
+#include <std_srvs/Empty.h>
 #include <boost/filesystem.hpp>
-#include "planner/util.h"
 #include "planner/defines.h"
 
 class Tester
@@ -77,7 +78,7 @@ private:
         {
             if (!boost::filesystem::create_directories(ss.str()))
             {
-                ROS_FATAL("Failed to create log directory!");
+                ROS_FATAL("[TESTER]: Failed to create log directory!");
                 ros::shutdown();
                 exit(-1);
             }
@@ -109,7 +110,7 @@ private:
         randomise_req.request.surface = surface_;
         if (!randomiser_client_.call(randomise_req))
         {
-            ROS_FATAL("Error calling randomiser service!");
+            ROS_FATAL("[TESTER]: Error calling randomiser service!");
             ros::shutdown();
             exit(-1);
         }
