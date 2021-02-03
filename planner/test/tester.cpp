@@ -31,11 +31,8 @@ public:
         {
             ROS_INFO("[TESTER]: Starting run #%d ...", i);
 
-            if (this->runPlannerAndLog())
-            {
-                // only reset if arm has actually moved to execute a plan
-                this->resetArm();
-            }
+            this->runPlannerAndLog();
+            this->resetArm();
 
             i++;
             if (i > num_runs_)
@@ -101,7 +98,7 @@ private:
         init_client_.call(empty_req);
     }
 
-    bool runPlannerAndLog()
+    void runPlannerAndLog()
     {
         planner::start_plan plan_req;
         plan_req.request.target = "cylinder";
@@ -134,8 +131,6 @@ private:
             ros::shutdown();
             exit(-1);
         }
-
-        return plan_req.response.path_found && plan_req.response.path_valid;
     }
 
     ros::NodeHandle nh_;
