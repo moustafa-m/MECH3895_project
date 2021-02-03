@@ -118,7 +118,7 @@ private:
         if (planning_client_.call(plan_req))
         {
             std::fstream file;
-            file.open(log_file_, std::fstream::out);
+            file.open(log_file_, std::fstream::app);
             
             // annoyingly, bool variables in ROS srv/msg are represented as uint8, so each one needs to
             // be cast to bool type to print them out correctly
