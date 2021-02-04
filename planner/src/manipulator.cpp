@@ -15,11 +15,12 @@ Manipulator::Manipulator(ros::NodeHandle* nh)
 Manipulator::~Manipulator()
 {
     delete ik_solver_;
+    delete ik_solver_fast_;
     delete fk_solver_;
 }
 
 bool Manipulator::solveIK(std::vector<double>& output, const Eigen::Vector3d& position, const Eigen::Quaterniond& orientation,
-    const std::vector<double>& prev_joints)
+    const std::vector<double>& prev_joints, bool fast)
 {
     assert(prev_joints.size() == num_joints_ && "prev_joints vector size != num_joints!");
     KDL::JntArray current_states(num_joints_), out(num_joints_);
@@ -29,7 +30,9 @@ bool Manipulator::solveIK(std::vector<double>& output, const Eigen::Vector3d& po
     end_effector_pose.M = KDL::Rotation::Quaternion(orientation.x(), orientation.y(), orientation.z(), orientation.w());
     end_effector_pose.p[0] = position[0]; end_effector_pose.p[1] = position[1]; end_effector_pose.p[2] = position[2];
 
-    int success = ik_solver_->CartToJnt(current_states, end_effector_pose, out);
+    int success;
+    if (fast) { success = ik_solver_fast_->CartToJnt(current_states, end_effector_pose, out); }
+    else { success = ik_solver_->CartToJnt(current_states, end_effector_pose, out); }
 
     if (success < 0) { return false; }
 
@@ -142,6 +145,7 @@ void Manipulator::initSolvers()
     chain_start = name_ + "_link_base";
     chain_end = name_ + "_end_effector";
     ik_solver_ = new TRAC_IK::TRAC_IK(chain_start, chain_end, "/robot_description", timeout_, 1e-3, solve_type_);
+    ik_solver_fast_ = new TRAC_IK::TRAC_IK(chain_start, chain_end, "/robot_description", 0.005, 1e-3, TRAC_IK::Speed);
 
     bool valid = ik_solver_->getKDLChain(chain_);
     if (!valid)

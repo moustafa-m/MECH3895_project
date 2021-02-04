@@ -24,7 +24,8 @@ public:
     Manipulator(ros::NodeHandle* nh);
     ~Manipulator();
 
-    bool solveIK(std::vector<double>& output, const Eigen::Vector3d& position, const Eigen::Quaterniond& orientation, const std::vector<double>& prev_joints);
+    bool solveIK(std::vector<double>& output, const Eigen::Vector3d& position, const Eigen::Quaterniond& orientation, const std::vector<double>& prev_joints,
+        bool fast = false);
     bool solveFK(std::vector<Eigen::Vector3d>& positions, std::vector<Eigen::Quaterniond>& orientations, const std::vector<double>& joints_pos = {});
     std::string getName();
     int getNumJoints();
@@ -51,6 +52,7 @@ private:
     std::string name_ = "j2s7s300";
 
     TRAC_IK::TRAC_IK* ik_solver_;
+    TRAC_IK::TRAC_IK* ik_solver_fast_;
     TRAC_IK::SolveType solve_type_;
     double timeout_;
 
