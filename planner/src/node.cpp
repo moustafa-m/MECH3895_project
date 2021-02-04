@@ -16,9 +16,11 @@ int main(int argc, char** argv)
     ros::init(argc, argv, "planner_node");
     ros::NodeHandle nh;
     
-    while (!checkGazeboIsUp() && ros::ok())
+    while (!checkGazeboIsUp())
     {
         ROS_WARN_THROTTLE(5, "Gazebo not detected! Waiting...");
+
+        if (!ros::ok()) { return EXIT_SUCCESS;} 
     }
 
     ROS_INFO("%sGazebo is up! Starting...", GREEN);
