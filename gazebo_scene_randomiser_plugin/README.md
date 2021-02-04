@@ -33,3 +33,8 @@ To get the name from Gazebo, select the model then in the left side panel, expan
 As an example, the image below shows the required z-axis orientation and objects placed on the "low_shelf" collision link.
 
 ![Gazebo Example](images/example.png)
+
+## Demo
+A demo is shown below of how the plugin works.
+
+![Randomiser Demo](images/randomiser.gif)
