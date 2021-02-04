@@ -2,6 +2,16 @@
 
 Noteable/major changes will be listed here
 
+## 3rd Feb 2021
+
+### Fixed
+
+- testing node overwriting log file rather than appending.
+  
+### Modified
+
+- testing node will call service to reset arm regardless if the arm moved or not.
+
 ## 31st Jan 2021
 
 ### Added
