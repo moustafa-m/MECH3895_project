@@ -100,14 +100,13 @@ $ roslaunch planner gazebo.launch
 A Gazebo and Rviz windows should popup.
 
 If desired, you can pass in a world argument to launch a different scene from the [worlds](kinova_gazebo/worlds) folder. The default is ```kinova_tableV1```.
-
-**NOTE:** if Gazebo models need to be installed, Gazebo node may not launch correctly. Gazebo will take some time to load as it is downloading required models, once loaded the arm will probably just fall due to controller timeout. Resolved by relaunching after Gazebo finishes downloading models and loads up.  
-
-### Planner
 ```
 $ roslaunch planner gazebo.launch world:=kinova_tableV2
 ```
 
+**NOTE:** if Gazebo models need to be installed, Gazebo node may not launch correctly. Gazebo will take some time to load as it is downloading required models, once loaded the arm will probably just fall due to controller timeout. Resolved by relaunching after Gazebo finishes downloading models and loads up.  
+
+### Planner
 Finally, run the planner using:
 
 ```
@@ -128,7 +127,7 @@ All third party licenses can be found in their respective folders in this reposi
 ### gazebo_grasp_plugin
 Cloned from [gazebo-pkgs](https://github.com/JenniferBuehler/gazebo-pkgs) repo by [Jennifer Buehler](https://github.com/JenniferBuehler). The master branch was cloned, commit baf0f033475c3a592efb0862079f3ff8392cadf6.  
 
-This package is used as a workaround to limitations in Gazebo for grasping operations (objects tend to slip/get pushed away when a grasp is attempted). Adding very high friction to the Kinova fingers is also a workaround. For this project, both the plugin and custom friction values are used. Another change was done to the Kinova description files regarding the finger tips, this is explained in [here](#Changes-to-Kinova-model)
+This package is used as a workaround to limitations in Gazebo for grasping operations (objects tend to slip/get pushed away when a grasp is attempted). Adding very high friction to the Kinova fingers is also a workaround. For this project, both the plugin and custom friction values are used. Another change was done to the Kinova description files regarding the finger tips, this is explained in the next section
 
 ### Kinova packages
 The [kinova_control](kinova_control/), [kinova_description](kinova_description/), and [kinova_gazebo](kinova_gazebo) packages are from the official [kinova-ros](https://github.com/Kinovarobotics/kinova-ros/tree/master) package by [Kinova Robotics](https://github.com/Kinovarobotics). The master branch was cloned, commit 99ac039028855eb9c1000a9c51b9c1544d5ef446.
@@ -136,6 +135,8 @@ The [kinova_control](kinova_control/), [kinova_description](kinova_description/)
 ## Changes to Jaco2 Models
 ### Finger Tips For All Models
 The Kinova's finger tips in the description files have been changed to be a fixed joint and disabled in the controller configs.
+
+A [file](kinova_description/urdf/kinova_finger_friction.xacro) was made to add custom friction values to both parts of the finger sets as well.
 
 The joints would sporadically move when a grasp is attempted and often resulted in the grasp plugin not working correctly and the object being pushed away regardless of set friction values.
 

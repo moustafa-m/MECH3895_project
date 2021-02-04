@@ -10,7 +10,7 @@
 - [x] use ROS params for planner timeouts, name, IK solve type etc.
 - [x] Write up a complete README
 - [ ] Add media files
-- [ ] Add script to randomise Gazebo environment and execute the planner
+- [x] Add script to randomise Gazebo environment and execute the planner
   - [x] scene randomiser
-  - [ ] node to automate planner execution
+  - [x] node to automate planner execution
 - [ ] Change planner to use online planning

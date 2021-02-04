@@ -22,6 +22,7 @@
 #include "util.h"
 #include "defines.h"
 #include "manipulator.h"
+#include "controller.h"
 
 namespace ob = ompl::base;
 namespace og = ompl::geometric;
@@ -29,10 +30,10 @@ namespace og = ompl::geometric;
 class Planner
 {
 public:
-    Planner(ros::NodeHandle* nh, Manipulator* manip);
+    Planner(ros::NodeHandle* nh);
     ~Planner();
 
-    bool plan(trajectory_msgs::JointTrajectory& traj);
+    bool plan();
     void setStart(const Eigen::Vector3d& start, const Eigen::Quaterniond& orientation);
     void setGoal(const Eigen::Vector3d& goal, const Eigen::Quaterniond& orientation);
     void setCollisionGeometries(const std::vector<util::CollisionGeometry>& collision_boxes);
@@ -46,13 +47,19 @@ private:
     bool generateTrajectory(trajectory_msgs::JointTrajectory& traj);
     void publishGoalMarker();
     void publishMarkers();
+    void modelStatesCallback(const gazebo_msgs::ModelStatesConstPtr msg);
+    void update();
     bool isObjectBlocked(std::vector<int>& idxs);
     void planInClutter(std::vector<int> idxs, std::vector<ob::ScopedState<ob::SE3StateSpace>>& states);
     bool getPushAction(std::vector<ob::ScopedState<ob::SE3StateSpace>>& states, std::vector<util::CollisionGeometry>& objs,
         const util::CollisionGeometry& geom);
+    bool startPlanSrvCallback(planner::start_plan::Request& req, planner::start_plan::Response& res);
 
     ros::NodeHandle nh_;
     ros::Publisher marker_pub_;
+    ros::Subscriber models_sub_;
+    ros::ServiceServer start_plan_srv_;
+    ros::ServiceClient collisions_client_;
 
     bool save_path_;
     bool display_path_;
@@ -60,10 +67,12 @@ private:
     int path_states_;
     std::string planner_name_;
 
-    Manipulator* manipulator_;
+    Manipulator manipulator_;
+    Controller controller_;
 
     double plan_time_;
     util::CollisionGeometry target_geom_;
+    gazebo_msgs::ModelStatesConstPtr models_;
 
     std::vector<std::string> static_objs_;
     std::vector<util::CollisionGeometry> collision_boxes_;

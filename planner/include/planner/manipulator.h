@@ -39,8 +39,6 @@ private:
     void setJointsInfo();
     void initSolvers();
     void setDefaultPoses();
-    void setUpperBounds();
-    void setLowerBounds();
     void setDHParameters();
     void setDHTheta();
     void jointStatesCallback(sensor_msgs::JointStateConstPtr msg);

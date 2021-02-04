@@ -17,7 +17,7 @@ if [ -z "$*" ]; then
     exit 0
 fi
 
-while getopts ":f:h:" opt; do
+while getopts ":f:h" opt; do
     case "${opt}" in
         f)
             filename=$OPTARG

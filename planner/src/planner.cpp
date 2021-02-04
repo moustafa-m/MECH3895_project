@@ -1,7 +1,7 @@
 #include "planner/planner.h"
 
-Planner::Planner(ros::NodeHandle* nh, Manipulator* manip)
-    : nh_(*nh), manipulator_(manip)
+Planner::Planner(ros::NodeHandle* nh)
+    : nh_(*nh), manipulator_(nh), controller_(nh, &manipulator_)
 {
     this->initROS();
     this->init();
@@ -12,7 +12,7 @@ Planner::~Planner()
 
 }
 
-bool Planner::plan(trajectory_msgs::JointTrajectory& traj)
+bool Planner::plan()
 {
     state_checker_->setTargetCollision(true);
     state_checker_->setNonStaticCollisions(false);
@@ -30,6 +30,7 @@ bool Planner::plan(trajectory_msgs::JointTrajectory& traj)
     if (solved != ob::PlannerStatus::EXACT_SOLUTION)
     {
         std::cout << RED << "[PLANNER]: No solution found!" << NC << std::endl;
+        plan_time_ = chrono::duration_cast<chrono::milliseconds>(t_end-t_start).count()/1000.0;
         return false;
     }
 
@@ -100,11 +101,11 @@ bool Planner::plan(trajectory_msgs::JointTrajectory& traj)
 
     int64_t duration = chrono::duration_cast<chrono::milliseconds>(t_end-t_start).count();
     std::cout << CYAN << "Planner took: " << duration << " ms (" << duration/1000.0 << " sec)" << std::endl;
-    plan_time_ = duration;
+    plan_time_ = duration/1000.0;
 
     if (save_path_ || display_path_) { this->savePath(); }
 
-    return this->generateTrajectory(traj);
+    return true;
 }
 
 void Planner::setStart(const Eigen::Vector3d& start, const Eigen::Quaterniond& orientation)
@@ -228,7 +229,7 @@ void Planner::savePath()
 void Planner::clearMarkers()
 {
     visualization_msgs::Marker marker;
-    marker.header.frame_id = manipulator_->getName() + "_link_base";
+    marker.header.frame_id = manipulator_.getName() + "_link_base";
 	marker.action = visualization_msgs::Marker::DELETEALL;
     marker_pub_.publish(marker);
 }
@@ -246,7 +247,7 @@ void Planner::init()
     
     // space information and validity checker
     si_ = ob::SpaceInformationPtr(new ob::SpaceInformation(space_));
-    state_checker_ = std::make_shared<StateChecker>(StateChecker(si_, manipulator_, &collision_boxes_));
+    state_checker_ = std::make_shared<StateChecker>(StateChecker(si_, &manipulator_, &collision_boxes_));
     si_->setStateValidityChecker(ob::StateValidityCheckerPtr(state_checker_));
     si_->setStateValidityCheckingResolution(0.001);
     si_->setup();
@@ -257,12 +258,17 @@ void Planner::init()
 
     if (planner_name_ == "RRTStar") { planner_ = ob::PlannerPtr(new og::RRTstar(si_)); }
     else if (planner_name_ == "BFMT") { planner_ = ob::PlannerPtr(new og::BFMT(si_)); }
-    else { planner_ = ob::PlannerPtr(new og::KPIECE1(si_)); planner_->setup(); }    
+    else { planner_ = ob::PlannerPtr(new og::KPIECE1(si_)); planner_->setup(); }
+
+    ROS_INFO("%s[PLANNER]: Initialised!", GREEN);
 }
 
 void Planner::initROS()
 {
     marker_pub_ = nh_.advertise<visualization_msgs::Marker>("/visualization_marker", 10);
+    models_sub_ = nh_.subscribe("/gazebo/model_states", 10, &Planner::modelStatesCallback, this);
+    start_plan_srv_ = nh_.advertiseService("/start_plan", &Planner::startPlanSrvCallback, this);
+    collisions_client_ = nh_.serviceClient<gazebo_geometries_plugin::geometry>("/gazebo/get_geometry", 10);
 
     ros::param::param<std::vector<std::string>>("/gazebo/static_objects", static_objs_, {"INVALID"});
     ros::param::param<std::string>("~planner/name", planner_name_, "KPIECE1");
@@ -284,12 +290,17 @@ void Planner::initROS()
     for (int i = 0; i < static_objs_.size(); i++) { ss << static_objs_[i] << " "; }
     ROS_INFO_STREAM(BLUE << "Static Objs\t: " << ss.str());
     ROS_INFO_STREAM(BLUE << "name\t\t: " << planner_name_);
-    ROS_INFO_STREAM(BLUE << "timeout\t\t: " << timeout_);
+    ROS_INFO_STREAM(BLUE << "timeout\t: " << timeout_);
     ROS_INFO_STREAM(BLUE << "path_states\t: " << path_states_);
     ROS_INFO_STREAM(BLUE << "save_path\t: " << std::boolalpha << save_path_);
     ROS_INFO_STREAM(BLUE << "display_path\t: " << std::boolalpha << display_path_);
     
     ROS_INFO("%s*****************************", BLUE);
+
+    while (models_sub_.getNumPublishers() == 0 && ros::ok())
+    {
+        ROS_INFO_DELAYED_THROTTLE(5, "%s[PLANNER]: Waiting for Gazebo topics to come up...", CYAN);
+    }
 }
 
 bool Planner::generateTrajectory(trajectory_msgs::JointTrajectory& traj)
@@ -305,11 +316,11 @@ bool Planner::generateTrajectory(trajectory_msgs::JointTrajectory& traj)
         path_states.insert(path_states.end(), solution_states.begin(), solution_states.end());
     }
 
-    int num_joints = manipulator_->getNumJoints();
+    int num_joints = manipulator_.getNumJoints();
 
     traj.joint_names.resize(num_joints);
     traj.points.resize(path_states.size());
-    traj.joint_names = manipulator_->getJointNames();
+    traj.joint_names = manipulator_.getJointNames();
 
     for (size_t i = 0; i < path_states.size(); i++)
     {
@@ -330,8 +341,8 @@ bool Planner::generateTrajectory(trajectory_msgs::JointTrajectory& traj)
 
         std::vector<double> angles;
         bool success = false;
-        if (i == 0) { success = manipulator_->solveIK(angles, position, orientation, manipulator_->getInitPose()); }
-        else { success = manipulator_->solveIK(angles, position, orientation, traj.points[i-1].positions); }
+        if (i == 0) { success = manipulator_.solveIK(angles, position, orientation, manipulator_.getInitPose()); }
+        else { success = manipulator_.solveIK(angles, position, orientation, traj.points[i-1].positions); }
 
         if (success) { traj.points[i].positions = angles; }
         else
@@ -361,7 +372,7 @@ void Planner::publishGoalMarker()
     marker.color.b = marker.color.a = 1.0;
     marker.color.r = marker.color.g = 0.0;
     marker.ns = "goal";
-    marker.header.frame_id = manipulator_->getName() + "_link_base";
+    marker.header.frame_id = manipulator_.getName() + "_link_base";
     marker.header.stamp = ros::Time::now();
     marker.action = visualization_msgs::Marker::ADD;
     marker.type = visualization_msgs::Marker::CUBE;
@@ -381,7 +392,7 @@ void Planner::publishMarkers()
         // ---> state markers
         marker.id = j;
         marker.ns = "states";
-        marker.header.frame_id = manipulator_->getName() + "_link_base";
+        marker.header.frame_id = manipulator_.getName() + "_link_base";
         marker.header.stamp = ros::Time::now();
         marker.color.a = 1.0; marker.color.g = 1.0; marker.color.r = marker.color.g = 0;
         marker.type = visualization_msgs::Marker::SPHERE;
@@ -413,7 +424,7 @@ void Planner::publishMarkers()
             marker.color.a = 1.0;
 
             marker.ns = "path";
-            marker.header.frame_id = manipulator_->getName() + "_link_base";
+            marker.header.frame_id = manipulator_.getName() + "_link_base";
             marker.header.stamp = ros::Time::now();
 
             geometry_msgs::Point p;
@@ -443,6 +454,80 @@ void Planner::publishMarkers()
     }
 }
 
+void Planner::modelStatesCallback(gazebo_msgs::ModelStatesConstPtr msg)
+{
+    models_ = msg;
+}
+
+void Planner::update()
+{
+    collision_boxes_.clear();
+
+    for (size_t i = 0; i < models_->name.size(); i++)
+    {
+        if (models_->name[i].find(manipulator_.getName()) != std::string::npos) continue;
+
+        gazebo_geometries_plugin::geometry srv;
+        srv.request.model_name = models_->name[i];
+        if (collisions_client_.call(srv))
+        {
+            if (!srv.response.success)
+            {
+                ROS_ERROR("[PLANNER]: Geometries plugin returned an error for [%s]!", models_->name[i].c_str());
+                continue;
+            }
+
+            for (size_t j = 0; j < srv.response.name.size(); j++)
+            {
+                util::CollisionGeometry temp;
+                temp.name = srv.response.name[j];
+                temp.pose = srv.response.pose[j];
+                temp.min = srv.response.min_bounds[j];
+                temp.max = srv.response.max_bounds[j];
+                temp.dimension = srv.response.dimensions[j];
+                
+                collision_boxes_.push_back(temp);
+
+                if (temp.name == target_geom_.name)
+                {
+                    this->setTargetGeometry(temp);
+                }
+            }
+        }
+    }
+
+    int num_joints = manipulator_.getNumJoints();
+    // collision geometries for Kinova links and fingers
+    for (int i = 0 ; i < num_joints+3; i++)
+    {
+        std::string link;
+        if (i < manipulator_.getNumJoints()) { link = "_link_" + std::to_string(i+1); }
+        else { link = "_link_finger_" + std::to_string((i+1)-num_joints); }
+
+        gazebo_geometries_plugin::geometry srv;
+        srv.request.model_name = manipulator_.getName() + link;
+        if (collisions_client_.call(srv))
+        {
+            if (!srv.response.success)
+            {
+                ROS_ERROR("[PLANNER]: Geometries plugin returned an error for [%s]!", srv.request.model_name.c_str());
+                continue;
+            }
+
+            for (size_t j = 0; j < srv.response.name.size(); j++)
+            {
+                util::CollisionGeometry temp;
+                temp.name = srv.response.name[j];
+                temp.pose = srv.response.pose[j];
+                temp.min = srv.response.min_bounds[j];
+                temp.max = srv.response.max_bounds[j];
+                temp.dimension = srv.response.dimensions[j];
+                collision_boxes_.push_back(temp);
+            }
+        }
+    }
+}
+
 bool Planner::isObjectBlocked(std::vector<int>& idxs)
 {
     bool clear = true;
@@ -457,7 +542,7 @@ bool Planner::isObjectBlocked(std::vector<int>& idxs)
             std::abs(collision_boxes_[i].pose.position.z - goal_pos_.z()) > 0.2;
         
         if (is_static || out_of_workspace ||
-            collision_boxes_[i].name.find(manipulator_->getName()) != std::string::npos ||
+            collision_boxes_[i].name.find(manipulator_.getName()) != std::string::npos ||
             collision_boxes_[i].name.find(target_geom_.name) != std::string::npos)
         { continue; }
 
@@ -507,7 +592,7 @@ void Planner::planInClutter(std::vector<int> idxs, std::vector<ob::ScopedState<o
             for (int j = 0; j < objects.size(); j++)
             {
                 if (orig.name == objects[j].name || objects[j].name.find("_merged") != std::string::npos) continue;
-          
+
                 bool intersect = (orig.min.x < objects[j].max.x) && (orig.max.x > objects[j].min.x);
 
                 if (intersect)
@@ -641,6 +726,94 @@ bool Planner::getPushAction(std::vector<ob::ScopedState<ob::SE3StateSpace>>& sta
     push_state->setX(geom.pose.position.x + (direction*0.1));
     push_state->setY(goal_pos_.y());
     states.push_back(push_state);
+
+    return true;
+}
+
+bool Planner::startPlanSrvCallback(planner::start_plan::Request& req, planner::start_plan::Response& res)
+{
+    if (req.target.find("_collision") == std::string::npos) req.target += "_collision";
+
+    target_geom_.name = req.target;
+    target_geom_.dimension.x = target_geom_.dimension.y = target_geom_.dimension.z = -1;
+    this->update();
+
+    Eigen::Vector3d goal_xyz = Eigen::Vector3d(target_geom_.pose.position.x,
+                                            target_geom_.pose.position.y,
+                                            target_geom_.pose.position.z);
+
+    if (target_geom_.dimension.x == -1)
+    {
+        ROS_ERROR("[PLANNER]: Unable to find collision geometry for [%s]", req.target.c_str());
+        res.message = "Unable to start, target not found!";
+        return true;
+    }
+    else if (std::sqrt((goal_xyz[0]*goal_xyz[0]) + (goal_xyz[1]*goal_xyz[1]) + (goal_xyz[2]*goal_xyz[2])) > 0.95)
+    {
+        ROS_ERROR("[PLANNER]: Target is out of reach!");
+        res.message = "Unable to start, target is out of reach!";
+        return true;
+    }
+
+    controller_.goToInit();
+    controller_.openGripper();
+
+    std::vector<Eigen::Vector3d> start_positions; std::vector<Eigen::Quaterniond> start_orientations;
+    manipulator_.solveFK(start_positions, start_orientations);
+
+    this->clearMarkers();
+    this->setStart(start_positions.back(), start_orientations.back());
+    this->setGoal(goal_xyz, start_orientations.back());
+
+    bool success = this->plan();
+
+    if (success)
+    {
+        res.path_found = success;
+        res.plan_time = plan_time_;
+
+        trajectory_msgs::JointTrajectory traj;
+
+        if (!this->generateTrajectory(traj))
+        {
+            res.path_valid = res.grasp_success = false;
+            ROS_ERROR("[PLANNER]: Solution path found but is not kinematically valid!");
+            res.message = "Solution path found but is not kinematically valid!";
+            return true;
+        }
+
+        res.path_valid = true;
+
+        controller_.sendAction(traj);
+        controller_.closeGripper();
+
+        // verify grasp attempt
+        std::vector<Eigen::Vector3d> positions;
+        std::vector<Eigen::Quaterniond> orientations;
+        manipulator_.solveFK(positions, orientations);
+        this->update();
+        if (positions.back()[0] - target_geom_.pose.position.x >= -2e-2 &&
+            std::abs(positions.back()[1] - target_geom_.pose.position.y) <= 2e-2)
+        {
+            ROS_INFO("%s[PLANNER]: Grasp attempt successful!", GREEN);
+            res.grasp_success = true;
+            res.message = "Solution found and grasp attempt was successful!";
+        }
+        else
+        {
+            ROS_ERROR("[PLANNER]: Grasp attempt failed!");
+            res.grasp_success = false;
+            res.message = "Solution found but grasp attempt failed!";
+        }
+    }
+    else
+    {
+        res.path_found = res.path_valid = res.grasp_success = false;
+        res.plan_time = plan_time_;
+        res.message = "Unable to find solution!";
+
+        ROS_ERROR("[PLANNER]: unable to find solution");
+    }
 
     return true;
 }
