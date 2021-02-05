@@ -111,7 +111,7 @@ bool Planner::plan()
 void Planner::setStart(const Eigen::Vector3d& start, const Eigen::Quaterniond& orientation)
 {
     ob::ScopedState<ob::SE3StateSpace> start_state(space_);
-    start_state->setXYZ(start[0], start[1], start[2]);
+    start_state->setXYZ(start.x(), start.y(), start.z());
     start_state->rotation().x = orientation.x();
     start_state->rotation().y = orientation.y();
     start_state->rotation().z = orientation.z();
@@ -119,19 +119,17 @@ void Planner::setStart(const Eigen::Vector3d& start, const Eigen::Quaterniond& o
     pdef_->clearStartStates();
     pdef_->addStartState(start_state);
 
-    #ifdef DEBUG
-    std::cout << MAGENTA << "[DEBUG] Start: {" << start_state->getX() << ", " << start_state->getY() << ", " 
-            << start_state->getZ() << "} {" << start_state->rotation().x << ", "
-            << start_state->rotation().y << ", "
-            << start_state->rotation().z << ", "
-            << start_state->rotation().w << "}" << std::endl;
-    #endif
+    std::cout << BLUE << "[PLANNER]: Start pose set to:\n {"
+        << start_state->getX() << ", " << start_state->getY() << ", "
+        << start_state->getZ() << "} {" << start_state->rotation().x << ", "
+        << start_state->rotation().y << ", " << start_state->rotation().z << ", "
+        << start_state->rotation().w << "}" << std::endl;
 }
 
 void Planner::setGoal(const Eigen::Vector3d& goal, const Eigen::Quaterniond& orientation)
 {
     ob::ScopedState<ob::SE3StateSpace> goal_state(space_);
-    goal_state->setXYZ(goal[0], goal[1], goal[2]);
+    goal_state->setXYZ(goal.x(), goal.y(), goal.z());
     goal_state->rotation().x = orientation.x();
     goal_state->rotation().y = orientation.y();
     goal_state->rotation().z = orientation.z();
@@ -144,13 +142,11 @@ void Planner::setGoal(const Eigen::Vector3d& goal, const Eigen::Quaterniond& ori
     goal_orient_ = orientation;
     this->publishGoalMarker();
 
-    #ifdef DEBUG
-    std::cout << MAGENTA << "[DEBUG] Goal: {" << goal_state->getX() << ", " << goal_state->getY() << ", "
-            << goal_state->getZ() << "} {" << goal_state->rotation().x << ", "
-            << goal_state->rotation().y << ", "
-            << goal_state->rotation().z << ", "
-            << goal_state->rotation().w << "}" << std::endl;
-    #endif
+    std::cout << BLUE << "[PLANNER]: Goal pose set to:\n {"
+        << goal_state->getX() << ", " << goal_state->getY() << ", "
+        << goal_state->getZ() << "} {" << goal_state->rotation().x << ", "
+        << goal_state->rotation().y << ", " << goal_state->rotation().z << ", "
+        << goal_state->rotation().w << "}" << std::endl;
 }
 
 void Planner::setCollisionGeometries(const std::vector<util::CollisionGeometry>& collision_boxes)
@@ -195,7 +191,8 @@ void Planner::savePath()
     for (int i = 0; i < solutions_.size(); i++)
     {
         solutions_[i].printAsMatrix(path_stream);
-        stats_file << plan_time_/1000.0 << "\t" << solutions_[i].length() << "\t" << solutions_[i].cost(pdef_->getOptimizationObjective()) << std::endl;
+        stats_file << result_.plan_time/1000.0 << "\t" << solutions_[i].length() << "\t"
+            << solutions_[i].cost(pdef_->getOptimizationObjective()) << std::endl;
     }
     
     // the paths contain an empty line at the end which makes the graph in gnuplot plot get drawn incorrectly
@@ -716,9 +713,26 @@ bool Planner::getPushAction(std::vector<ob::ScopedState<ob::SE3StateSpace>>& sta
         }
     }
 
-    double push_dist = 0.1 + (init_dist - geom.dimension.y*0.5);
+    double clearance = 0.1 - std::abs(geom.pose.position.y - target_geom_.pose.position.y);
+    double push_dist = clearance + (init_dist - geom.dimension.y*0.5);
+
     // push action
     push_state->setY(desired_y + direction*(push_dist));
+
+    // propagate the arm state along the path and check if is valid
+    for (int i = 1; i <= 10; i++)
+    {
+        ob::ScopedState<ob::SE3StateSpace> state(space_);
+        state = push_state;
+        state->setY(desired_y + direction * (push_dist*i/10));
+
+        if (!state_checker_->isValid(state.get()))
+        {
+            std::cout << RED << "[PLANNER]: Push action not possible!" << std::endl;
+            return false;
+        }
+    }
+
     states.push_back(push_state);
 
     // reset
@@ -775,6 +789,8 @@ bool Planner::getPushGraspAction(const util::CollisionGeometry& geom, ob::Scoped
 
 bool Planner::startPlanSrvCallback(planner::start_plan::Request& req, planner::start_plan::Response& res)
 {
+    ROS_INFO("%s[PLANNER]: Received plan request for [%s]", CYAN, req.target.c_str());
+
     if (req.target.find("_collision") == std::string::npos) req.target += "_collision";
 
     target_geom_.name = req.target;
@@ -791,7 +807,7 @@ bool Planner::startPlanSrvCallback(planner::start_plan::Request& req, planner::s
         res.message = "Unable to start, target not found!";
         return true;
     }
-    else if (std::sqrt((goal_xyz[0]*goal_xyz[0]) + (goal_xyz[1]*goal_xyz[1]) + (goal_xyz[2]*goal_xyz[2])) > 0.95)
+    else if (std::sqrt((goal_xyz.x()*goal_xyz.x()) + (goal_xyz.y()*goal_xyz.y()) + (goal_xyz.z()*goal_xyz.z())) > 0.95)
     {
         ROS_ERROR("[PLANNER]: Target is out of reach!");
         res.message = "Unable to start, target is out of reach!";
