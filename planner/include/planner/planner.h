@@ -6,6 +6,9 @@
 #include <boost/filesystem.hpp>
 #include <visualization_msgs/Marker.h>
 #include <trajectory_msgs/JointTrajectory.h>
+#include <gazebo_geometries_plugin/geometry.h>
+#include <gazebo_msgs/ModelStates.h>
+#include <planner/start_plan.h>
 
 #include <ompl/base/SpaceInformation.h>
 #include <ompl/base/objectives/PathLengthOptimizationObjective.h>

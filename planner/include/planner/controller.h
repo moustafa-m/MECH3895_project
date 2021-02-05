@@ -1,12 +1,9 @@
 #pragma once
 
 #include <control_msgs/FollowJointTrajectoryAction.h>
-#include <gazebo_msgs/ModelStates.h>
-#include <planner/start_plan.h>
 #include <actionlib_msgs/GoalID.h>
 #include <actionlib/client/action_client.h>
 #include <actionlib/client/simple_action_client.h>
-#include <gazebo_geometries_plugin/geometry.h>
 
 #include "util.h"
 #include "manipulator.h"
