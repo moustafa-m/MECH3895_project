@@ -227,7 +227,7 @@ void Planner::clearMarkers()
 {
     visualization_msgs::Marker marker;
     marker.header.frame_id = manipulator_.getName() + "_link_base";
-	marker.action = visualization_msgs::Marker::DELETEALL;
+    marker.action = visualization_msgs::Marker::DELETEALL;
     marker_pub_.publish(marker);
 }
 

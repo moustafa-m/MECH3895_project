@@ -105,9 +105,9 @@ private:
     Eigen::Vector3d goal_pos_;
     Eigen::Quaterniond goal_orient_;
 
-	ob::StateSpacePtr space_;
-	ob::SpaceInformationPtr si_;
-	ob::ProblemDefinitionPtr pdef_;
+    ob::StateSpacePtr space_;
+    ob::SpaceInformationPtr si_;
+    ob::ProblemDefinitionPtr pdef_;
     ob::PlannerPtr planner_;
     std::shared_ptr<StateChecker> state_checker_;
 };
