@@ -730,6 +730,49 @@ bool Planner::getPushAction(std::vector<ob::ScopedState<ob::SE3StateSpace>>& sta
     return true;
 }
 
+bool Planner::getPushGraspAction(const util::CollisionGeometry& geom, ob::ScopedState<ob::SE3StateSpace>& state)
+{
+    Eigen::Vector3d pos(geom.pose.position.x,
+                        geom.pose.position.y,
+                        geom.pose.position.z);
+
+    state = pdef_->getStartState(0);
+
+    // check if any object is close behind the object, which would interfere with the final object push
+    bool obj_behind = false;
+    for (int i = 0; i < collision_boxes_.size(); i++)
+    {
+        if (collision_boxes_[i].name == geom.name) continue;
+        
+        if (std::abs(collision_boxes_[i].pose.position.y - pos.y()) < 0.03 &&
+            std::abs(collision_boxes_[i].pose.position.x) - std::abs(pos.x()) <= 0.1)
+        {
+            obj_behind = true;
+            break;
+        }
+    }
+
+    // the final object push is not performed if there is an object behind the goal
+    double desired_x;
+    if (!obj_behind)
+    {
+        int direction = (pos.x() < 0) ? -1 : 1;
+        double max_x = std::sqrt( (0.94*0.94) - (pos.y()*pos.y()) - (pos.z()*pos.z()) );
+        desired_x = util::clamp<double>(pos.x() + direction*0.05, -1*max_x, max_x);
+    }
+    else
+    {
+        desired_x = pos.x();
+    }
+
+    state->setX(desired_x);
+    state->setY(pos.y());
+    state->setZ(pos.z());
+    if (!state_checker_->isValid(state.get())) { state->setX(pos.x()); }
+
+    return true;
+}
+
 bool Planner::startPlanSrvCallback(planner::start_plan::Request& req, planner::start_plan::Response& res)
 {
     if (req.target.find("_collision") == std::string::npos) req.target += "_collision";

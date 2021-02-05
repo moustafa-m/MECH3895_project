@@ -76,6 +76,7 @@ private:
     void planInClutter(std::vector<int> idxs, std::vector<ob::ScopedState<ob::SE3StateSpace>>& states);
     bool getPushAction(std::vector<ob::ScopedState<ob::SE3StateSpace>>& states, std::vector<util::CollisionGeometry>& objs,
         const util::CollisionGeometry& geom);
+    bool getPushGraspAction(const util::CollisionGeometry& geom, ob::ScopedState<ob::SE3StateSpace>& state);
     bool startPlanSrvCallback(planner::start_plan::Request& req, planner::start_plan::Response& res);
 
     ros::NodeHandle nh_;
