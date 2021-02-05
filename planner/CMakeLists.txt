@@ -1,8 +1,7 @@
 cmake_minimum_required(VERSION 3.0)
 project(planner)
 
-set(CMAKE_BUILD_TYPE "DEBUG")
-set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DDEBUG")
+set(CMAKE_BUILD_TYPE "RELEASE")
 
 add_compile_options(-std=c++14)
 
