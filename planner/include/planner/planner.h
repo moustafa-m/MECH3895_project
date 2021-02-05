@@ -97,7 +97,7 @@ private:
     Manipulator manipulator_;
     Controller controller_;
 
-    double plan_time_;
+    PlannerResult result_;
     util::CollisionGeometry target_geom_;
     gazebo_msgs::ModelStatesConstPtr models_;
 
