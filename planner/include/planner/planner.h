@@ -30,6 +30,29 @@ namespace og = ompl::geometric;
 class Planner
 {
 public:
+    // TODO: use this in implementation
+    enum ActionType
+    {
+        MOVE = 0,
+        PUSH,
+        GRASP
+    };
+
+    typedef struct PlannerResult
+    {
+        bool path_found = false;
+        bool path_valid = false;
+        bool grasp_success = false;
+        double plan_time = 0.0;
+
+        void reset()
+        {
+            path_found = path_valid = grasp_success = false;
+            plan_time = 0.0;
+        }
+    } PlannerResult;
+
+public:
     Planner(ros::NodeHandle* nh);
     ~Planner();
 
