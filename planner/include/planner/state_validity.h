@@ -5,7 +5,7 @@
 
 #include <fcl/config.h>
 #include <fcl/collision.h>
-#include <fcl/broadphase/broadphase.h>
+#include <fcl/shape/geometric_shapes.h>
 #include <fcl/math/transform.h>
 
 #include "util.h"
@@ -22,6 +22,7 @@ public:
     {
         target_collision_ = true;
         non_static_collisions_ = false;
+        check_IK_ = false;
 
         ros::param::param<std::vector<std::string>>("/gazebo/static_objects", static_objs_, {"INVALID"});
 
@@ -36,12 +37,14 @@ public:
 
     void setTargetCollision(bool option)
     {
+        if (target_collision_ == option) return;
         target_collision_ = option;
         std::cout << CYAN << "[STATE_CHECKER]: Target collision check " << (option ? "enabled" : "disabled") << NC << std::endl;
     }
 
     void setNonStaticCollisions(bool option)
     {
+        if (non_static_collisions_ == option) return;
         non_static_collisions_ = option;
         std::cout << CYAN << "[STATE_CHECKER]: Non static collisions check " << (option ? "enabled" : "disabled") << NC << std::endl;
     }
@@ -51,10 +54,18 @@ public:
         target_name_ = name;
     }
 
+    void setIKCheck(bool option)
+    {
+        if (check_IK_ == option) return;
+        check_IK_ = option;
+        std::cout << CYAN << "[STATE_CHECKER]: IK check " << (option ? "enabled" : "disabled") << NC << std::endl;
+    }
+
     bool isValid(const ob::State* state) const
     {
         if (!this->checkInReach(state)) { return false; }
         if (!this->checkCollision(state)) { return false; }
+        if (!this->checkIK(state)) { return false; }
         return true;
     }
 
@@ -62,6 +73,26 @@ public:
     {
         const ob::SE3StateSpace::StateType* state3D = state->as<ob::SE3StateSpace::StateType>();
         return std::sqrt((state3D->getX()*state3D->getX())+(state3D->getY()*state3D->getY())+(state3D->getZ()*state3D->getZ())) <= 0.95;
+    }
+
+    bool checkIK(const ob::State* state) const
+    {
+        // exit here if IK checks are disabled to avoid running the IK solver
+        // which would increase the planning time unnecessarily
+        if (!check_IK_) return true;
+
+        const ob::SE3StateSpace::StateType* state3D = state->as<ob::SE3StateSpace::StateType>();
+        double x = state3D->getX(); double y = state3D->getY(); double z = state3D->getZ();
+
+        Eigen::Quaterniond rotation(state3D->rotation().w,
+                            state3D->rotation().x,
+                            state3D->rotation().y,
+                            state3D->rotation().z);
+
+        std::vector<double> next;
+        bool success = manipulator_->solveIK(next, Eigen::Vector3d(x,y,z), rotation, manipulator_->getInitPose(), true);
+
+        return success;
     }
 
     bool checkCollision(const ob::State* state) const
@@ -182,23 +213,6 @@ public:
 
             if (result.isCollision() || finger1_result.isCollision() || finger2_result.isCollision() || finger3_result.isCollision())
             {
-                #ifdef DEBUG
-                fcl::Vec3f translation; std::string name; geometry_msgs::Vector3 dim; fcl::Contact contact; fcl::Quaternion3f rot;
-
-                std::cout << MAGENTA << "-----\n[DEBUG]\nCollision with: " << collision_boxes_->at(i).name << obj.getTranslation() << "\n"
-                        << "Rotation: " << obj.getQuatRotation() << std::endl;
-                std::cout << "Object dimensions: {" << collision_boxes_->at(i).dimension.x << " " << collision_boxes_->at(i).dimension.y << " " 
-                        << collision_boxes_->at(i).dimension.z << "}" << std::endl;
-                std::cout << "Detected collision in state: {" << x << ", " << y << ", " << z << "}" << std::endl;
-                
-                if (result.isCollision()) { translation = effectorobj.getTranslation(); name = "effector"; dim = effector.dimension; rot = effector_quat; }
-                else if (finger1_result.isCollision()) { translation = finger1obj.getTranslation(); name = "finger1"; dim = kinova_finger1.dimension; rot = finger1_quat; }
-                else if (finger2_result.isCollision()) { translation = finger2obj.getTranslation(); name = "finger2"; dim = kinova_finger2.dimension; rot = finger2_quat; }
-                else { translation = finger3obj.getTranslation(); name = "finger3"; dim = kinova_finger3.dimension; rot = finger3_quat; }
-
-                std::cout << "link name: " << name << "\nlink position: " << translation << "\nRotation: " << rot << "\nlink dimensions: {"
-                        << dim.x << ", " << dim.y << ", " << dim.z << "}\n-----" << std::endl;
-                #endif
                 return false;
             }
         }
@@ -211,6 +225,7 @@ private:
     const std::vector<util::CollisionGeometry>* collision_boxes_;
     std::vector<std::string> static_objs_;
     std::string target_name_;
+    bool check_IK_;
     
     bool target_collision_;
     bool non_static_collisions_;
