@@ -2,6 +2,22 @@
 
 Noteable/major changes will be listed here
 
+## 5th Feb 2021
+
+### Added
+
+- Planner enabling/disabling IK checks.
+- ActionType enum for action types.
+- getPushGrasp() method in Planner class.
+- PlannerResult struct to keep track of the current planning data. (path_found, path_valid, grasp_success and plan_time).
+- arm state propagation to validate a pushing action.
+
+### Modified
+
+- Clutter planning changed to use online planning. A plan is generated for an action which is then executed, afterwards the planner updates its data about the objects in the world (including the target) and the next action is planned according to the new data.
+- If the object is not blocked, the initial planned path is rechecked for non-static object collisions and repaired if needed.
+- isObjectBlocked() bool return inverted. Didn't make sense for it to return false when the object is blocked.
+
 ## 3rd Feb 2021
 
 ### Fixed

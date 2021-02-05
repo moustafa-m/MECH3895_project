@@ -5,12 +5,12 @@
   - [x] objects directly behind goal 
   - [ ] objects outside defined workspace
 - [ ] Add grasping as a clutter clearing action
-- [ ] Implement a struct for each action which includes the states needed to perform that action and the action type
-- [ ] Implement adjustments for object pose probability in cluttered areas
 - [x] use ROS params for planner timeouts, name, IK solve type etc.
 - [x] Write up a complete README
 - [ ] Add media files
 - [x] Add script to randomise Gazebo environment and execute the planner
   - [x] scene randomiser
   - [x] node to automate planner execution
-- [ ] Change planner to use online planning
+- [x] Change planner to use online planning
+- [x] Implement enum for each action type
+- [ ] ~~Implement adjustments for object pose probability in cluttered areas~~
