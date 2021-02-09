@@ -81,7 +81,7 @@ To run a demo, first clone the repo into a catkin workspace, make sure your term
 
 ### Building
 ```
-$ git clone https://github.com/moustafa-m/MECH3895_project
+$ git clone https://github.com/moustafa-m/clutter_planning.git
 ```
 
 Now build:
