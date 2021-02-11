@@ -2,6 +2,13 @@
 
 Noteable/major changes will be listed here
 
+## 11th Feb 2021
+
+### Modified
+
+- Added NONE and PUSH_GRASP to ActionType enum
+- planInClutter() now returns an ActionType.
+
 ## 5th Feb 2021
 
 ### Added
