@@ -32,7 +32,6 @@ bool Planner::plan()
 
     if (solved != ob::PlannerStatus::EXACT_SOLUTION)
     {
-        result_.path_found = result_.path_valid = result_.grasp_success = false;
         std::cout << RED << "[PLANNER]: No solution found!" << NC << std::endl;
         result_.plan_time = chrono::duration_cast<chrono::milliseconds>(t_end-t_start).count()/1000.0;
         return false;
@@ -60,16 +59,21 @@ bool Planner::plan()
             solutions_.clear();
 
             this->update();
-            bool blocked = this->isObjectBlocked(blocking_objs);
-            exit = !blocked || blocking_objs.empty();
+            this->isObjectBlocked(blocking_objs);
 
-            this->planInClutter(blocking_objs, states);
-            if (exit)
+            Planner::ActionType action = this->planInClutter(blocking_objs, states);
+            if (action == Planner::ActionType::NONE)
             {
+                result_.path_found = result_.path_valid = result_.grasp_success = false;
+                t_end = HighResClk::now();
+                result_.plan_time = chrono::duration_cast<chrono::milliseconds>(t_end-t_start).count()/1000.0;
+                ROS_ERROR("[PLANNER]: Failed to plan an action!");
+                return false;
+            }
+            else if (action == Planner::ActionType::PUSH_GRASP)
+            {
+                exit = true;
                 controller_.openGripper();
-                ob::ScopedState<ob::SE3StateSpace> state(space_);
-                this->getPushGraspAction(target_geom_, state);
-                states.push_back(state);
             }
 
             for (int i = 0; i < states.size(); i++)
@@ -102,9 +106,6 @@ bool Planner::plan()
                     pdef->getSolutionPath()->as<og::PathGeometric>()->interpolate(path_states_);
                     solutions_.push_back(*pdef->getSolutionPath()->as<og::PathGeometric>());
                     this->publishMarkers();
-
-                    int64_t duration = chrono::duration_cast<chrono::milliseconds>(t_end-t_start).count();
-                    result_.plan_time += duration/1000.0;
                 }
                 else
                 {
@@ -117,7 +118,12 @@ bool Planner::plan()
             }
 
             trajectory_msgs::JointTrajectory traj;
-            if (!this->generateTrajectory(traj))
+            bool valid_traj = this->generateTrajectory(traj);
+
+            int64_t duration = chrono::duration_cast<chrono::milliseconds>(t_end-t_start).count();
+            result_.plan_time += duration/1000.0;
+
+            if (!valid_traj)
             {
                 result_.path_valid = result_.grasp_success = false;
                 std::cout << "[PLANNER]: Path not kinematically valid!" << std::endl;
@@ -142,11 +148,13 @@ bool Planner::plan()
         solutions_.push_back(*pdef_->getSolutionPath()->as<og::PathGeometric>());
         this->publishMarkers();
 
+        trajectory_msgs::JointTrajectory traj;
+        bool valid_traj = this->generateTrajectory(traj);
+
         int64_t duration = chrono::duration_cast<chrono::milliseconds>(t_end-t_start).count();
         result_.plan_time = duration/1000.0;
 
-        trajectory_msgs::JointTrajectory traj;
-        if (!this->generateTrajectory(traj))
+        if (!valid_traj)
         {
             result_.path_valid = result_.grasp_success = false;
             std::cout << "[PLANNER]: Path not kinematically valid!" << std::endl;
@@ -670,10 +678,9 @@ bool Planner::isObjectBlocked(std::vector<int>& idxs)
     return !clear;
 }
 
-//TODO: this should return an int or preferably use the ActionType enum
-// this will allow to decide on what to do next based on the planned action, as well as
-// handle cases when an action cannot be planned.
-void Planner::planInClutter(std::vector<int> idxs, std::vector<ob::ScopedState<ob::SE3StateSpace>>& states)
+//TODO: might be worth to put the path planning and action planning bits together in here.
+// This will require splitting this up however.
+Planner::ActionType Planner::planInClutter(std::vector<int> idxs, std::vector<ob::ScopedState<ob::SE3StateSpace>>& states)
 {
     state_checker_->setIKCheck(false);
     ob::ScopedState<ob::SE3StateSpace> state(space_);
@@ -730,7 +737,9 @@ void Planner::planInClutter(std::vector<int> idxs, std::vector<ob::ScopedState<o
         
         states.push_back(state);
 
-        this->getPushAction(states, objects, objects.front());
+        bool success = this->getPushAction(states, objects, objects.front());
+
+        return (success) ? Planner::ActionType::PUSH : Planner::ActionType::NONE;
     }
     else
     {
@@ -739,6 +748,11 @@ void Planner::planInClutter(std::vector<int> idxs, std::vector<ob::ScopedState<o
         state->setY(goal_pos_.y());
         state->setZ(goal_pos_.z());
         states.push_back(state);
+
+        this->getPushGraspAction(target_geom_, state);
+        states.push_back(state);
+
+        return Planner::ActionType::PUSH_GRASP;
     }
 }
 

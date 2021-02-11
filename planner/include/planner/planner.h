@@ -36,7 +36,8 @@ public:
     // TODO: use this in implementation
     enum ActionType
     {
-        MOVE = 0,
+        NONE = -1,
+        PUSH_GRASP,
         PUSH,
         GRASP
     };
@@ -76,7 +77,7 @@ private:
     void modelStatesCallback(const gazebo_msgs::ModelStatesConstPtr msg);
     void update();
     bool isObjectBlocked(std::vector<int>& idxs);
-    void planInClutter(std::vector<int> idxs, std::vector<ob::ScopedState<ob::SE3StateSpace>>& states);
+    Planner::ActionType planInClutter(std::vector<int> idxs, std::vector<ob::ScopedState<ob::SE3StateSpace>>& states);
     bool getPushAction(std::vector<ob::ScopedState<ob::SE3StateSpace>>& states, std::vector<util::CollisionGeometry>& objs,
         const util::CollisionGeometry& geom);
     bool getPushGraspAction(const util::CollisionGeometry& geom, ob::ScopedState<ob::SE3StateSpace>& state);
