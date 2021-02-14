@@ -2,6 +2,16 @@
 
 Noteable/major changes will be listed here
 
+## 14th Feb 2021
+
+### Added
+
+- created a Timer class and integrated in Planner class.
+
+### Modified
+
+- Plan time now includes the intial validation phase.
+
 ## 11th Feb 2021
 
 ### Modified
