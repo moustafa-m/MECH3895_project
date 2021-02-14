@@ -6,5 +6,5 @@ planner:
   display_path:   false           # if true, the planned path will be displayed in a gnuplot window
 
 kinematics_solver:
-  type:           0               # 0 - Speed, 1 - Distance, 2 - Manip1, 3 - Manip2
+  type:           1               # 0 - Speed, 1 - Distance, 2 - Manip1, 3 - Manip2
   timeout:        0.005           # seconds

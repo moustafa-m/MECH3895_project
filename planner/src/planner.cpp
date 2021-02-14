@@ -16,6 +16,9 @@ bool Planner::plan()
 {
     state_checker_->setTargetCollision(true);
     state_checker_->setNonStaticCollisions(false);
+    state_checker_->setIKCheck(true);
+
+    result_.reset();
 
     solutions_.clear();
     planner_->clear();
@@ -30,80 +33,162 @@ bool Planner::plan()
     if (solved != ob::PlannerStatus::EXACT_SOLUTION)
     {
         std::cout << RED << "[PLANNER]: No solution found!" << NC << std::endl;
-        plan_time_ = chrono::duration_cast<chrono::milliseconds>(t_end-t_start).count()/1000.0;
+        result_.plan_time = chrono::duration_cast<chrono::milliseconds>(t_end-t_start).count()/1000.0;
         return false;
     }
 
     // now check if the object is blocked by non-static objects, if it is not, then the inital obtained path is used
-    // this check is skipped if the arm needs to reset its pose, which is determined by an empty target name
     std::vector<int> blocking_objs;
-    if (!this->isObjectBlocked(blocking_objs) && !target_geom_.name.empty())
+    if (this->isObjectBlocked(blocking_objs))
     {
-        std::vector<ob::ScopedState<ob::SE3StateSpace>> states;
-        this->planInClutter(blocking_objs, states);
-
         // disable checks for collision with target and non-static objects if clutter clearing is needed
         state_checker_->setTargetCollision(false);
         state_checker_->setNonStaticCollisions(false);
-
         pdef_->clearSolutionPaths();
 
-        t_start = HighResClk::now();
-        
-        for (int i = 0; i < states.size(); i++)
+        controller_.closeGripper();
+
+        //TODO: maybe it'd be better to put this inside planInClutter() and make a new
+        // method (getAction() or smth) and call that.
+        bool exit = false;
+        while (ros::ok() && !exit)
         {
-            std::cout << BLUE << "Solving for state: " << i << std::endl;
-            
-            // break problem into multiple sub-problems for OMPL
-            ob::ProblemDefinitionPtr pdef = ob::ProblemDefinitionPtr(new ob::ProblemDefinition(si_));
-            pdef->clearGoal(); pdef->clearStartStates();
+            t_start = HighResClk::now();
+            std::vector<ob::ScopedState<ob::SE3StateSpace>> states;
 
-            if (i == 0) { pdef->addStartState(pdef_->getStartState(0)); }
-            else { pdef->addStartState(states[i-1]); }
+            solutions_.clear();
 
-            pdef->setGoalState(states[i]);
-            pdef->setOptimizationObjective(ob::OptimizationObjectivePtr(new ob::PathLengthOptimizationObjective(si_)));
-            
-            planner_->clear();
-            planner_->setProblemDefinition(pdef);
-            if (!planner_->isSetup()) planner_->setup();
+            this->update();
+            this->isObjectBlocked(blocking_objs);
 
-            solved = planner_->solve(timeout_);
-            
-            if (solved == ob::PlannerStatus::EXACT_SOLUTION)
+            Planner::ActionType action = this->planInClutter(blocking_objs, states);
+            if (action == Planner::ActionType::NONE)
             {
-                og::PathSimplifierPtr simplifier = og::PathSimplifierPtr(new og::PathSimplifier(si_));
-                simplifier->simplifyMax(*pdef->getSolutionPath()->as<og::PathGeometric>());
-                pdef->getSolutionPath()->as<og::PathGeometric>()->interpolate(path_states_);
-                solutions_.push_back(*pdef->getSolutionPath()->as<og::PathGeometric>());
-                this->publishMarkers();
-            }
-            else
-            {
-                std::cout << RED << "[PLANNER]: No solution found!\nUnable to solve for state : " << i << "\n" << states[i] << NC << std::endl;
+                result_.path_found = result_.path_valid = result_.grasp_success = false;
+                t_end = HighResClk::now();
+                result_.plan_time = chrono::duration_cast<chrono::milliseconds>(t_end-t_start).count()/1000.0;
+                ROS_ERROR("[PLANNER]: Failed to plan an action!");
                 return false;
             }
+            else if (action == Planner::ActionType::PUSH_GRASP)
+            {
+                exit = true;
+                controller_.openGripper();
+            }
+
+            for (int i = 0; i < states.size(); i++)
+            {
+                std::cout << BLUE << "Solving for state: " << i << std::endl;
+                
+                state_checker_->setIKCheck(true);
+
+                // break problem into multiple sub-problems for OMPL
+                ob::ProblemDefinitionPtr pdef = ob::ProblemDefinitionPtr(new ob::ProblemDefinition(si_));
+                pdef->clearGoal(); pdef->clearStartStates();
+
+                if (i == 0) { pdef->addStartState(pdef_->getStartState(0)); }
+                else { pdef->addStartState(states[i-1]); }
+
+                pdef->setGoalState(states[i]);
+                pdef->setOptimizationObjective(ob::OptimizationObjectivePtr(new ob::PathLengthOptimizationObjective(si_)));
+
+                planner_->clear();
+                planner_->setProblemDefinition(pdef);
+                if (!planner_->isSetup()) planner_->setup();
+
+                solved = planner_->solve(timeout_);
+                t_end = HighResClk::now();
+
+                if (solved == ob::PlannerStatus::EXACT_SOLUTION)
+                {
+                    og::PathSimplifierPtr simplifier = og::PathSimplifierPtr(new og::PathSimplifier(si_));
+                    simplifier->simplifyMax(*pdef->getSolutionPath()->as<og::PathGeometric>());
+                    pdef->getSolutionPath()->as<og::PathGeometric>()->interpolate(path_states_);
+                    solutions_.push_back(*pdef->getSolutionPath()->as<og::PathGeometric>());
+                    this->publishMarkers();
+                }
+                else
+                {
+                    std::cout << RED << "[PLANNER]: No solution found!\nUnable to solve for state : "
+                        << i << "\n" << states[i] << NC << std::endl;
+                    int64_t duration = chrono::duration_cast<chrono::milliseconds>(t_end-t_start).count();
+                    result_.plan_time += duration/1000.0;
+                    return false;
+                }
+            }
+
+            trajectory_msgs::JointTrajectory traj;
+            bool valid_traj = this->generateTrajectory(traj);
+
+            int64_t duration = chrono::duration_cast<chrono::milliseconds>(t_end-t_start).count();
+            result_.plan_time += duration/1000.0;
+
+            if (!valid_traj)
+            {
+                result_.path_valid = result_.grasp_success = false;
+                std::cout << "[PLANNER]: Path not kinematically valid!" << std::endl;
+                return false;
+            }
+
+            controller_.sendAction(traj);
         }
-        
-        t_end = HighResClk::now();
+        controller_.closeGripper();
     }
     else
     {
+        // object not blocked but path may collide with non-static objects because
+        // initial planning does not check for that, so path needs to be checked
+        state_checker_->setNonStaticCollisions(true);
+        pdef_->getSolutionPath()->as<og::PathGeometric>()->checkAndRepair(5);
+
         og::PathSimplifierPtr simplifier = og::PathSimplifierPtr(new og::PathSimplifier(si_));
         simplifier->simplifyMax(*pdef_->getSolutionPath()->as<og::PathGeometric>());
         pdef_->getSolutionPath()->as<og::PathGeometric>()->interpolate(path_states_);
         
         solutions_.push_back(*pdef_->getSolutionPath()->as<og::PathGeometric>());
         this->publishMarkers();
+
+        trajectory_msgs::JointTrajectory traj;
+        bool valid_traj = this->generateTrajectory(traj);
+
+        int64_t duration = chrono::duration_cast<chrono::milliseconds>(t_end-t_start).count();
+        result_.plan_time = duration/1000.0;
+
+        if (!valid_traj)
+        {
+            result_.path_valid = result_.grasp_success = false;
+            std::cout << "[PLANNER]: Path not kinematically valid!" << std::endl;
+            return false;
+        }
+
+        controller_.sendAction(traj);
+        controller_.closeGripper();
     }
 
     std::cout << GREEN << "[PLANNER]: Solution found!\n";
 
-    int64_t duration = chrono::duration_cast<chrono::milliseconds>(t_end-t_start).count();
-    std::cout << CYAN << "Planner took: " << duration << " ms (" << duration/1000.0 << " sec)" << std::endl;
-    plan_time_ = duration/1000.0;
+    result_.path_valid = result_.path_found = true;
 
     if (save_path_ || display_path_) { this->savePath(); }
+
+    // verify grasp attempt
+    std::vector<Eigen::Vector3d> positions;
+    std::vector<Eigen::Quaterniond> orientations;
+    manipulator_.solveFK(positions, orientations);
+    this->update();
+    if (std::abs(positions.back().x() - target_geom_.pose.position.x) <= 3e-2 &&
+        std::abs(positions.back().y() - target_geom_.pose.position.y) <= 2e-2 &&
+        std::abs(positions.back().z() - target_geom_.pose.position.z) <= 4e-2)
+    {
+        std::cout << GREEN << "[PLANNER]: Grasp attempt successful" << std::endl;
+        result_.grasp_success = true;
+    }
+    else
+    {
+        std::cout << RED << "[PLANNER]: Grasp attempt failed!" << std::endl;
+        result_.grasp_success = false;
+        return false;
+    }
 
     return true;
 }
@@ -111,7 +196,7 @@ bool Planner::plan()
 void Planner::setStart(const Eigen::Vector3d& start, const Eigen::Quaterniond& orientation)
 {
     ob::ScopedState<ob::SE3StateSpace> start_state(space_);
-    start_state->setXYZ(start[0], start[1], start[2]);
+    start_state->setXYZ(start.x(), start.y(), start.z());
     start_state->rotation().x = orientation.x();
     start_state->rotation().y = orientation.y();
     start_state->rotation().z = orientation.z();
@@ -119,19 +204,17 @@ void Planner::setStart(const Eigen::Vector3d& start, const Eigen::Quaterniond& o
     pdef_->clearStartStates();
     pdef_->addStartState(start_state);
 
-    #ifdef DEBUG
-    std::cout << MAGENTA << "[DEBUG] Start: {" << start_state->getX() << ", " << start_state->getY() << ", " 
-            << start_state->getZ() << "} {" << start_state->rotation().x << ", "
-            << start_state->rotation().y << ", "
-            << start_state->rotation().z << ", "
-            << start_state->rotation().w << "}" << std::endl;
-    #endif
+    std::cout << BLUE << "[PLANNER]: Start pose set to:\n {"
+        << start_state->getX() << ", " << start_state->getY() << ", "
+        << start_state->getZ() << "} {" << start_state->rotation().x << ", "
+        << start_state->rotation().y << ", " << start_state->rotation().z << ", "
+        << start_state->rotation().w << "}" << std::endl;
 }
 
 void Planner::setGoal(const Eigen::Vector3d& goal, const Eigen::Quaterniond& orientation)
 {
     ob::ScopedState<ob::SE3StateSpace> goal_state(space_);
-    goal_state->setXYZ(goal[0], goal[1], goal[2]);
+    goal_state->setXYZ(goal.x(), goal.y(), goal.z());
     goal_state->rotation().x = orientation.x();
     goal_state->rotation().y = orientation.y();
     goal_state->rotation().z = orientation.z();
@@ -144,13 +227,11 @@ void Planner::setGoal(const Eigen::Vector3d& goal, const Eigen::Quaterniond& ori
     goal_orient_ = orientation;
     this->publishGoalMarker();
 
-    #ifdef DEBUG
-    std::cout << MAGENTA << "[DEBUG] Goal: {" << goal_state->getX() << ", " << goal_state->getY() << ", "
-            << goal_state->getZ() << "} {" << goal_state->rotation().x << ", "
-            << goal_state->rotation().y << ", "
-            << goal_state->rotation().z << ", "
-            << goal_state->rotation().w << "}" << std::endl;
-    #endif
+    std::cout << BLUE << "[PLANNER]: Goal pose set to:\n {"
+        << goal_state->getX() << ", " << goal_state->getY() << ", "
+        << goal_state->getZ() << "} {" << goal_state->rotation().x << ", "
+        << goal_state->rotation().y << ", " << goal_state->rotation().z << ", "
+        << goal_state->rotation().w << "}" << std::endl;
 }
 
 void Planner::setCollisionGeometries(const std::vector<util::CollisionGeometry>& collision_boxes)
@@ -195,7 +276,8 @@ void Planner::savePath()
     for (int i = 0; i < solutions_.size(); i++)
     {
         solutions_[i].printAsMatrix(path_stream);
-        stats_file << plan_time_/1000.0 << "\t" << solutions_[i].length() << "\t" << solutions_[i].cost(pdef_->getOptimizationObjective()) << std::endl;
+        stats_file << result_.plan_time/1000.0 << "\t" << solutions_[i].length() << "\t"
+            << solutions_[i].cost(pdef_->getOptimizationObjective()) << std::endl;
     }
     
     // the paths contain an empty line at the end which makes the graph in gnuplot plot get drawn incorrectly
@@ -230,7 +312,7 @@ void Planner::clearMarkers()
 {
     visualization_msgs::Marker marker;
     marker.header.frame_id = manipulator_.getName() + "_link_base";
-	marker.action = visualization_msgs::Marker::DELETEALL;
+    marker.action = visualization_msgs::Marker::DELETEALL;
     marker_pub_.publish(marker);
 }
 
@@ -290,7 +372,7 @@ void Planner::initROS()
     for (int i = 0; i < static_objs_.size(); i++) { ss << static_objs_[i] << " "; }
     ROS_INFO_STREAM(BLUE << "Static Objs\t: " << ss.str());
     ROS_INFO_STREAM(BLUE << "name\t\t: " << planner_name_);
-    ROS_INFO_STREAM(BLUE << "timeout\t: " << timeout_);
+    ROS_INFO_STREAM(BLUE << "timeout\t\t: " << timeout_);
     ROS_INFO_STREAM(BLUE << "path_states\t: " << path_states_);
     ROS_INFO_STREAM(BLUE << "save_path\t: " << std::boolalpha << save_path_);
     ROS_INFO_STREAM(BLUE << "display_path\t: " << std::boolalpha << display_path_);
@@ -341,15 +423,29 @@ bool Planner::generateTrajectory(trajectory_msgs::JointTrajectory& traj)
 
         std::vector<double> angles;
         bool success = false;
-        if (i == 0) { success = manipulator_.solveIK(angles, position, orientation, manipulator_.getInitPose()); }
-        else { success = manipulator_.solveIK(angles, position, orientation, traj.points[i-1].positions); }
-
-        if (success) { traj.points[i].positions = angles; }
+        if (i == 0)
+        {
+            // This step ensures this will work for online planning.
+            // The initial state of the arm is used directly from the joint_states topic
+            // that is subscribed to in the Manipulator class rather than assuming the arm has
+            // started from its init pose which is not always the case for online planning.
+            std::vector<double> current_angles = manipulator_.getJointStates().position;
+            for (int i = 0; i < manipulator_.getFingerNames().size(); i++) { current_angles.pop_back(); }
+            success = manipulator_.solveIK(angles, position, orientation, current_angles);
+        }
         else
         {
-            std::cout << RED << "[PLANNER]: IK solver failed for: \npos: { " << position << " }\nquat: { " << orientation.coeffs() << " }" << std::endl;
+            success = manipulator_.solveIK(angles, position, orientation, traj.points[i-1].positions);
+        }
+
+        if (!success)
+        {
+            std::cout << RED << "[PLANNER]: IK solver failed for: \npos: { " << position
+                << " }\nquat: { " << orientation.coeffs() << " }" << std::endl;
             return false;
         }
+        
+        traj.points[i].positions = angles;
         
         for (int j = 0; j < num_joints; j++)
         {
@@ -461,6 +557,13 @@ void Planner::modelStatesCallback(gazebo_msgs::ModelStatesConstPtr msg)
 
 void Planner::update()
 {
+    this->clearMarkers();
+
+    std::vector<Eigen::Vector3d> manip_positions;
+    std::vector<Eigen::Quaterniond> manip_quats;
+    manipulator_.solveFK(manip_positions, manip_quats);
+    this->setStart(manip_positions.back(), manip_quats.back());
+
     collision_boxes_.clear();
 
     for (size_t i = 0; i < models_->name.size(); i++)
@@ -491,6 +594,13 @@ void Planner::update()
                 if (temp.name == target_geom_.name)
                 {
                     this->setTargetGeometry(temp);
+                    goal_pos_ = Eigen::Vector3d(temp.pose.position.x,
+                                                temp.pose.position.y,
+                                                temp.pose.position.z);
+
+                    goal_orient_ = manip_quats.back();
+                    
+                    this->setGoal(goal_pos_, goal_orient_);
                 }
             }
         }
@@ -530,6 +640,7 @@ void Planner::update()
 
 bool Planner::isObjectBlocked(std::vector<int>& idxs)
 {
+    idxs.clear();
     bool clear = true;
 
     for (size_t i = 0; i < collision_boxes_.size(); i++)
@@ -548,7 +659,12 @@ bool Planner::isObjectBlocked(std::vector<int>& idxs)
 
         if (std::abs(collision_boxes_[i].pose.position.y - goal_pos_.y()) < 0.10)
         {
-            if (std::abs(collision_boxes_[i].pose.position.x) - std::abs(goal_pos_.x()) < -0.05) idxs.push_back(i);
+            double min_clearance = target_geom_.dimension.x/2;
+            // If the object x relative to the target x is more than or equal the clearance
+            // then the object will need to be moved away.
+            // This assumes that it is not possible for the difference to be below this
+            // clearance, since anything below this clearance will collide/penetrate the target.
+            if (std::abs(goal_pos_.x()) - std::abs(collision_boxes_[i].pose.position.x) >= min_clearance) idxs.push_back(i);
             clear = false;
         }
     }
@@ -559,11 +675,14 @@ bool Planner::isObjectBlocked(std::vector<int>& idxs)
         else { std::cout << CYAN << "[PLANNER]: Path blocked, found " << idxs.size() << " objects to clear" << NC << std::endl; }
     }
 
-    return clear;
+    return !clear;
 }
 
-void Planner::planInClutter(std::vector<int> idxs, std::vector<ob::ScopedState<ob::SE3StateSpace>>& states)
+//TODO: might be worth to put the path planning and action planning bits together in here.
+// This will require splitting this up however.
+Planner::ActionType Planner::planInClutter(std::vector<int> idxs, std::vector<ob::ScopedState<ob::SE3StateSpace>>& states)
 {
+    state_checker_->setIKCheck(false);
     ob::ScopedState<ob::SE3StateSpace> state(space_);
     state = pdef_->getStartState(0);
 
@@ -618,59 +737,29 @@ void Planner::planInClutter(std::vector<int> idxs, std::vector<ob::ScopedState<o
         
         states.push_back(state);
 
-        for (int i = 0; i < objects.size(); i++)
-        {
-            if (objects[i].name == "SKIP") continue;
+        bool success = this->getPushAction(states, objects, objects.front());
 
-            this->getPushAction(states, objects, objects[i]);            
-        }
+        return (success) ? Planner::ActionType::PUSH : Planner::ActionType::NONE;
     }
     else
     {
         // if the indices array is empty, objects are surronding the object but may be pushed by a grasp attempt
-        state->setX(goal_pos_.x()*0.20);
+        state->setX(goal_pos_.x()*0.60);
         state->setY(goal_pos_.y());
         state->setZ(goal_pos_.z());
         states.push_back(state);
-    }
 
-    // check if any object is close behind the object, which would interfere with the final object push
-    bool obj_behind = false;
-    for (int i = 0; i < collision_boxes_.size(); i++)
-    {
-        if (collision_boxes_[i].name == target_geom_.name) continue;
-        
-        if (std::abs(collision_boxes_[i].pose.position.y - goal_pos_.y()) < 0.03 &&
-            std::abs(collision_boxes_[i].pose.position.x) - std::abs(goal_pos_.x()) <= 0.05)
-        {
-            obj_behind = true;
-            break;
-        }
-    }
+        this->getPushGraspAction(target_geom_, state);
+        states.push_back(state);
 
-    // the final object push is not performed if there is an object behind the goal
-    double desired_x;
-    if (!obj_behind)
-    {
-        int direction = (goal_pos_.x() < 0) ? -1 : 1;
-        double max_x = std::sqrt( (0.94*0.94) - (goal_pos_.y()*goal_pos_.y()) - (goal_pos_.z()*goal_pos_.z()) );
-        desired_x = util::clamp<double>(goal_pos_.x() + direction*0.05, -1*max_x, max_x);
+        return Planner::ActionType::PUSH_GRASP;
     }
-    else
-    {
-        desired_x = goal_pos_.x();
-    }
-
-    state->setX(desired_x);
-    state->setY(goal_pos_.y());
-    state->setZ(goal_pos_.z());
-    if (!state_checker_->isValid(state.get())) { state->setX(goal_pos_.x()); }
-    states.push_back(state);
 }
 
 bool Planner::getPushAction(std::vector<ob::ScopedState<ob::SE3StateSpace>>& states, std::vector<util::CollisionGeometry>& objs,
     const util::CollisionGeometry& geom)
 {
+    state_checker_->setIKCheck(true);
     double init_dist = (1.5*geom.dimension.y) + 0.05;
     int direction = (geom.pose.position.y > target_geom_.pose.position.y) ? 1 : -1;
 
@@ -694,6 +783,8 @@ bool Planner::getPushAction(std::vector<ob::ScopedState<ob::SE3StateSpace>>& sta
         direction = (state_checker_->isValid(push_state.get())) ? -1 : 0;
     }
 
+    state_checker_->setIKCheck(false);
+
     if (direction == 0)
     {
         ROS_ERROR("[PLANNER]: Failed to get push action");
@@ -716,9 +807,26 @@ bool Planner::getPushAction(std::vector<ob::ScopedState<ob::SE3StateSpace>>& sta
         }
     }
 
-    double push_dist = 0.1 + (init_dist - geom.dimension.y*0.5);
+    double clearance = 0.1 - std::abs(geom.pose.position.y - target_geom_.pose.position.y);
+    double push_dist = clearance + (init_dist - geom.dimension.y*0.5);
+
     // push action
     push_state->setY(desired_y + direction*(push_dist));
+
+    // propagate the arm state along the path and check if is valid
+    for (int i = 1; i <= 10; i++)
+    {
+        ob::ScopedState<ob::SE3StateSpace> state(space_);
+        state = push_state;
+        state->setY(desired_y + direction * (push_dist*i/10));
+
+        if (!state_checker_->isValid(state.get()))
+        {
+            std::cout << RED << "[PLANNER]: Push action not possible!" << std::endl;
+            return false;
+        }
+    }
+
     states.push_back(push_state);
 
     // reset
@@ -730,8 +838,53 @@ bool Planner::getPushAction(std::vector<ob::ScopedState<ob::SE3StateSpace>>& sta
     return true;
 }
 
+bool Planner::getPushGraspAction(const util::CollisionGeometry& geom, ob::ScopedState<ob::SE3StateSpace>& state)
+{
+    Eigen::Vector3d pos(geom.pose.position.x,
+                        geom.pose.position.y,
+                        geom.pose.position.z);
+
+    state = pdef_->getStartState(0);
+
+    // check if any object is close behind the object, which would interfere with the final object push
+    bool obj_behind = false;
+    for (int i = 0; i < collision_boxes_.size(); i++)
+    {
+        if (collision_boxes_[i].name == geom.name) continue;
+        
+        if (std::abs(collision_boxes_[i].pose.position.y - pos.y()) < 0.03 &&
+            std::abs(collision_boxes_[i].pose.position.x) - std::abs(pos.x()) <= 0.1)
+        {
+            obj_behind = true;
+            break;
+        }
+    }
+
+    // the final object push is not performed if there is an object behind the goal
+    double desired_x;
+    if (!obj_behind)
+    {
+        int direction = (pos.x() < 0) ? -1 : 1;
+        double max_x = std::sqrt( (0.94*0.94) - (pos.y()*pos.y()) - (pos.z()*pos.z()) );
+        desired_x = util::clamp<double>(pos.x() + direction*0.05, -1*max_x, max_x);
+    }
+    else
+    {
+        desired_x = pos.x();
+    }
+
+    state->setX(desired_x);
+    state->setY(pos.y());
+    state->setZ(pos.z());
+    if (!state_checker_->isValid(state.get())) { state->setX(pos.x()); }
+
+    return true;
+}
+
 bool Planner::startPlanSrvCallback(planner::start_plan::Request& req, planner::start_plan::Response& res)
 {
+    ROS_INFO("%s[PLANNER]: Received plan request for [%s]", CYAN, req.target.c_str());
+
     if (req.target.find("_collision") == std::string::npos) req.target += "_collision";
 
     target_geom_.name = req.target;
@@ -742,13 +895,16 @@ bool Planner::startPlanSrvCallback(planner::start_plan::Request& req, planner::s
                                             target_geom_.pose.position.y,
                                             target_geom_.pose.position.z);
 
+    res.path_found = res.path_valid = res.grasp_success = false;
+    res.plan_time = 0.0;
+
     if (target_geom_.dimension.x == -1)
     {
         ROS_ERROR("[PLANNER]: Unable to find collision geometry for [%s]", req.target.c_str());
         res.message = "Unable to start, target not found!";
         return true;
     }
-    else if (std::sqrt((goal_xyz[0]*goal_xyz[0]) + (goal_xyz[1]*goal_xyz[1]) + (goal_xyz[2]*goal_xyz[2])) > 0.95)
+    else if (std::sqrt((goal_xyz.x()*goal_xyz.x()) + (goal_xyz.y()*goal_xyz.y()) + (goal_xyz.z()*goal_xyz.z())) > 0.95)
     {
         ROS_ERROR("[PLANNER]: Target is out of reach!");
         res.message = "Unable to start, target is out of reach!";
@@ -761,59 +917,19 @@ bool Planner::startPlanSrvCallback(planner::start_plan::Request& req, planner::s
     std::vector<Eigen::Vector3d> start_positions; std::vector<Eigen::Quaterniond> start_orientations;
     manipulator_.solveFK(start_positions, start_orientations);
 
-    this->clearMarkers();
-    this->setStart(start_positions.back(), start_orientations.back());
-    this->setGoal(goal_xyz, start_orientations.back());
-
     bool success = this->plan();
 
-    if (success)
-    {
-        res.path_found = success;
-        res.plan_time = plan_time_;
+    std::cout << CYAN << "[PLANNER]: planning time: " << result_.plan_time << " s" << std::endl;
 
-        trajectory_msgs::JointTrajectory traj;
+    res.path_found = result_.path_found;
+    res.path_valid = result_.path_valid;
+    res.grasp_success = result_.grasp_success;
+    res.plan_time = result_.plan_time;
 
-        if (!this->generateTrajectory(traj))
-        {
-            res.path_valid = res.grasp_success = false;
-            ROS_ERROR("[PLANNER]: Solution path found but is not kinematically valid!");
-            res.message = "Solution path found but is not kinematically valid!";
-            return true;
-        }
-
-        res.path_valid = true;
-
-        controller_.sendAction(traj);
-        controller_.closeGripper();
-
-        // verify grasp attempt
-        std::vector<Eigen::Vector3d> positions;
-        std::vector<Eigen::Quaterniond> orientations;
-        manipulator_.solveFK(positions, orientations);
-        this->update();
-        if (positions.back()[0] - target_geom_.pose.position.x >= -2e-2 &&
-            std::abs(positions.back()[1] - target_geom_.pose.position.y) <= 2e-2)
-        {
-            ROS_INFO("%s[PLANNER]: Grasp attempt successful!", GREEN);
-            res.grasp_success = true;
-            res.message = "Solution found and grasp attempt was successful!";
-        }
-        else
-        {
-            ROS_ERROR("[PLANNER]: Grasp attempt failed!");
-            res.grasp_success = false;
-            res.message = "Solution found but grasp attempt failed!";
-        }
-    }
-    else
-    {
-        res.path_found = res.path_valid = res.grasp_success = false;
-        res.plan_time = plan_time_;
-        res.message = "Unable to find solution!";
-
-        ROS_ERROR("[PLANNER]: unable to find solution");
-    }
+    if (!res.path_found) { res.message = "Unable to find solution!"; }
+    else if (!res.path_valid) { res.message = "Solution path found but is not kinematically valid!"; }
+    else if (res.grasp_success) { res.message = "Solution found and grasp attempt was successful!"; }
+    else { res.message = "Solution found but grasp attempt failed!"; }
 
     return true;
 }

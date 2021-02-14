@@ -6,6 +6,9 @@
 #include <boost/filesystem.hpp>
 #include <visualization_msgs/Marker.h>
 #include <trajectory_msgs/JointTrajectory.h>
+#include <gazebo_geometries_plugin/geometry.h>
+#include <gazebo_msgs/ModelStates.h>
+#include <planner/start_plan.h>
 
 #include <ompl/base/SpaceInformation.h>
 #include <ompl/base/objectives/PathLengthOptimizationObjective.h>
@@ -30,6 +33,30 @@ namespace og = ompl::geometric;
 class Planner
 {
 public:
+    // TODO: use this in implementation
+    enum ActionType
+    {
+        NONE = -1,
+        PUSH_GRASP,
+        PUSH,
+        GRASP
+    };
+
+    typedef struct PlannerResult
+    {
+        bool path_found = false;
+        bool path_valid = false;
+        bool grasp_success = false;
+        double plan_time = 0.0;
+
+        void reset()
+        {
+            path_found = path_valid = grasp_success = false;
+            plan_time = 0.0;
+        }
+    } PlannerResult;
+
+public:
     Planner(ros::NodeHandle* nh);
     ~Planner();
 
@@ -50,9 +77,10 @@ private:
     void modelStatesCallback(const gazebo_msgs::ModelStatesConstPtr msg);
     void update();
     bool isObjectBlocked(std::vector<int>& idxs);
-    void planInClutter(std::vector<int> idxs, std::vector<ob::ScopedState<ob::SE3StateSpace>>& states);
+    Planner::ActionType planInClutter(std::vector<int> idxs, std::vector<ob::ScopedState<ob::SE3StateSpace>>& states);
     bool getPushAction(std::vector<ob::ScopedState<ob::SE3StateSpace>>& states, std::vector<util::CollisionGeometry>& objs,
         const util::CollisionGeometry& geom);
+    bool getPushGraspAction(const util::CollisionGeometry& geom, ob::ScopedState<ob::SE3StateSpace>& state);
     bool startPlanSrvCallback(planner::start_plan::Request& req, planner::start_plan::Response& res);
 
     ros::NodeHandle nh_;
@@ -70,7 +98,7 @@ private:
     Manipulator manipulator_;
     Controller controller_;
 
-    double plan_time_;
+    PlannerResult result_;
     util::CollisionGeometry target_geom_;
     gazebo_msgs::ModelStatesConstPtr models_;
 
@@ -81,9 +109,9 @@ private:
     Eigen::Vector3d goal_pos_;
     Eigen::Quaterniond goal_orient_;
 
-	ob::StateSpacePtr space_;
-	ob::SpaceInformationPtr si_;
-	ob::ProblemDefinitionPtr pdef_;
+    ob::StateSpacePtr space_;
+    ob::SpaceInformationPtr si_;
+    ob::ProblemDefinitionPtr pdef_;
     ob::PlannerPtr planner_;
     std::shared_ptr<StateChecker> state_checker_;
 };
