@@ -25,15 +25,15 @@ bool Planner::plan()
     planner_->setProblemDefinition(pdef_);
     if (!planner_->isSetup()) planner_->setup();
 
-    // initial planning only computes a path without colliding with static objects, non-static objects are not considered
-    auto t_start = HighResClk::now();
+    // initial planning only computes a path without colliding with static objects and target
+    Timer plan_timer;
+    plan_timer.start();
     ob::PlannerStatus solved = planner_->solve(timeout_);
-    auto t_end = HighResClk::now();
 
     if (solved != ob::PlannerStatus::EXACT_SOLUTION)
     {
+        result_.plan_time = plan_timer.elapsedMillis()/1000.0;
         std::cout << RED << "[PLANNER]: No solution found!" << NC << std::endl;
-        result_.plan_time = chrono::duration_cast<chrono::milliseconds>(t_end-t_start).count()/1000.0;
         return false;
     }
 
@@ -53,7 +53,9 @@ bool Planner::plan()
         bool exit = false;
         while (ros::ok() && !exit)
         {
-            t_start = HighResClk::now();
+            // ensure timer is always started at this stage, the start() method will not
+            // override previous data as it checks if the timer is already started or paused
+            plan_timer.start();
             std::vector<ob::ScopedState<ob::SE3StateSpace>> states;
 
             solutions_.clear();
@@ -65,8 +67,7 @@ bool Planner::plan()
             if (action == Planner::ActionType::NONE)
             {
                 result_.path_found = result_.path_valid = result_.grasp_success = false;
-                t_end = HighResClk::now();
-                result_.plan_time = chrono::duration_cast<chrono::milliseconds>(t_end-t_start).count()/1000.0;
+                result_.plan_time = plan_timer.elapsedMillis()/1000.0;
                 ROS_ERROR("[PLANNER]: Failed to plan an action!");
                 return false;
             }
@@ -97,7 +98,6 @@ bool Planner::plan()
                 if (!planner_->isSetup()) planner_->setup();
 
                 solved = planner_->solve(timeout_);
-                t_end = HighResClk::now();
 
                 if (solved == ob::PlannerStatus::EXACT_SOLUTION)
                 {
@@ -111,24 +111,21 @@ bool Planner::plan()
                 {
                     std::cout << RED << "[PLANNER]: No solution found!\nUnable to solve for state : "
                         << i << "\n" << states[i] << NC << std::endl;
-                    int64_t duration = chrono::duration_cast<chrono::milliseconds>(t_end-t_start).count();
-                    result_.plan_time += duration/1000.0;
+                    result_.plan_time = plan_timer.elapsedMillis()/1000.0;
                     return false;
                 }
             }
 
             trajectory_msgs::JointTrajectory traj;
-            bool valid_traj = this->generateTrajectory(traj);
-
-            int64_t duration = chrono::duration_cast<chrono::milliseconds>(t_end-t_start).count();
-            result_.plan_time += duration/1000.0;
-
-            if (!valid_traj)
+            if (!this->generateTrajectory(traj))
             {
                 result_.path_valid = result_.grasp_success = false;
+                result_.plan_time = plan_timer.elapsedMillis()/1000.0;
                 std::cout << "[PLANNER]: Path not kinematically valid!" << std::endl;
                 return false;
             }
+
+            plan_timer.pause();
 
             controller_.sendAction(traj);
         }
@@ -149,25 +146,25 @@ bool Planner::plan()
         this->publishMarkers();
 
         trajectory_msgs::JointTrajectory traj;
-        bool valid_traj = this->generateTrajectory(traj);
-
-        int64_t duration = chrono::duration_cast<chrono::milliseconds>(t_end-t_start).count();
-        result_.plan_time = duration/1000.0;
-
-        if (!valid_traj)
+        if (!this->generateTrajectory(traj))
         {
             result_.path_valid = result_.grasp_success = false;
+            result_.plan_time = plan_timer.elapsedMillis()/1000.0;
             std::cout << "[PLANNER]: Path not kinematically valid!" << std::endl;
             return false;
         }
+
+        plan_timer.pause();
 
         controller_.sendAction(traj);
         controller_.closeGripper();
     }
 
-    std::cout << GREEN << "[PLANNER]: Solution found!\n";
-
+    std::cout << plan_timer.elapsedMillis()/1000.0 << std::endl;
+    result_.plan_time = plan_timer.elapsedMillis()/1000.0;
     result_.path_valid = result_.path_found = true;
+
+    std::cout << GREEN << "[PLANNER]: Solution found!\n";
 
     if (save_path_ || display_path_) { this->savePath(); }
 

@@ -26,6 +26,7 @@
 #include "defines.h"
 #include "manipulator.h"
 #include "controller.h"
+#include "timer.h"
 
 namespace ob = ompl::base;
 namespace og = ompl::geometric;
