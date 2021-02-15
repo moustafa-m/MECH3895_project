@@ -9,7 +9,6 @@ public:
     ~Timer();
 
     void start();
-    void stop();
     void pause();
     void reset();
     int64_t elapsedMillis();
