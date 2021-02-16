@@ -708,6 +708,7 @@ Planner::ActionType Planner::planInClutter(std::vector<int> idxs, std::vector<ob
         std::sort(objects.begin(), objects.end(), [](const util::CollisionGeometry& lhs, const util::CollisionGeometry& rhs)
             { return std::abs(lhs.pose.position.x) < std::abs(rhs.pose.position.x); });
         
+        // TODO: move this inside getPushAction()
         // checks for objects that are close together, these objects can be pushed using one action
         for (int i = 0; i < objects.size(); i++)
         {
@@ -772,21 +773,21 @@ bool Planner::getPushAction(std::vector<ob::ScopedState<ob::SE3StateSpace>>& sta
     // initially move to be directly beside blocking object (based on direction)
     double desired_y = geom.pose.position.y - direction*init_dist;
 
-    ob::ScopedState<ob::SE3StateSpace> push_state(space_);
+    ob::ScopedState<ob::SE3StateSpace> init_state(space_);
 
-    push_state = pdef_->getStartState(0);
-    push_state->setX(geom.pose.position.x);
-    push_state->setY(desired_y);
-    push_state->setZ(goal_pos_.z());
+    init_state = pdef_->getStartState(0);
+    init_state->setX(geom.pose.position.x);
+    init_state->setY(desired_y);
+    init_state->setZ(goal_pos_.z());
 
-    if (!state_checker_->isValid(push_state.get()))
+    if (!state_checker_->isValid(init_state.get()))
     {
         direction = -1;
         desired_y = geom.pose.position.y - direction*init_dist;
-        push_state->setY(desired_y);
+        init_state->setY(desired_y);
 
         // if 0 -> push action not possible
-        direction = (state_checker_->isValid(push_state.get())) ? -1 : 0;
+        direction = (state_checker_->isValid(init_state.get())) ? -1 : 0;
     }
 
     state_checker_->setIKCheck(false);
@@ -797,21 +798,8 @@ bool Planner::getPushAction(std::vector<ob::ScopedState<ob::SE3StateSpace>>& sta
         return false;
     }
 
-    states.push_back(push_state);
-
-    for (int i = 0; i < objs.size(); i++)
-    {
-        util::CollisionGeometry other = objs[i];
-        if (other.name == geom.name) continue;
-
-        if (std::abs(other.pose.position.x - push_state->getX()) <= 0.02 &&
-            std::abs(other.pose.position.y - push_state->getY()) <= 0.1 &&
-            std::abs(other.pose.position.z - push_state->getZ()) <= 0.1)
-        {
-            std::cout << BLUE << "[PLANNER]: Skipping " << other.name << std::endl;
-            objs.erase(objs.begin() + i);
-        }
-    }
+    ob::ScopedState<ob::SE3StateSpace> push_state(space_);
+    push_state = init_state;
 
     double clearance = 0.1 - std::abs(geom.pose.position.y - target_geom_.pose.position.y);
     double push_dist = clearance + (init_dist - geom.dimension.y*0.5);
@@ -833,6 +821,7 @@ bool Planner::getPushAction(std::vector<ob::ScopedState<ob::SE3StateSpace>>& sta
         }
     }
 
+    states.push_back(init_state);
     states.push_back(push_state);
 
     // reset
