@@ -49,11 +49,12 @@ public:
         bool path_valid = false;
         bool grasp_success = false;
         double plan_time = 0.0;
+        double execution_time = 0.0;
 
         void reset()
         {
             path_found = path_valid = grasp_success = false;
-            plan_time = 0.0;
+            plan_time = execution_time = 0.0;
         }
     } PlannerResult;
 

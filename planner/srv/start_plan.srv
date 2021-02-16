@@ -5,3 +5,4 @@ bool path_found
 bool path_valid
 bool grasp_success
 float64 plan_time
+float64 execution_time

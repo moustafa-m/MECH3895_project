@@ -25,8 +25,9 @@ bool Planner::plan()
     planner_->setProblemDefinition(pdef_);
     if (!planner_->isSetup()) planner_->setup();
 
+    Timer plan_timer, exectuion_timer;
+
     // initial planning only computes a path without colliding with static objects and target
-    Timer plan_timer;
     plan_timer.start();
     ob::PlannerStatus solved = planner_->solve(timeout_);
 
@@ -68,6 +69,7 @@ bool Planner::plan()
             {
                 result_.path_found = result_.path_valid = result_.grasp_success = false;
                 result_.plan_time = plan_timer.elapsedMillis()/1000.0;
+                result_.execution_time = exectuion_timer.elapsedMillis()/1000.0;
                 ROS_ERROR("[PLANNER]: Failed to plan an action!");
                 return false;
             }
@@ -112,6 +114,7 @@ bool Planner::plan()
                     std::cout << RED << "[PLANNER]: No solution found!\nUnable to solve for state : "
                         << i << "\n" << states[i] << NC << std::endl;
                     result_.plan_time = plan_timer.elapsedMillis()/1000.0;
+                    result_.execution_time = exectuion_timer.elapsedMillis()/1000.0;
                     return false;
                 }
             }
@@ -121,13 +124,16 @@ bool Planner::plan()
             {
                 result_.path_valid = result_.grasp_success = false;
                 result_.plan_time = plan_timer.elapsedMillis()/1000.0;
+                result_.execution_time = exectuion_timer.elapsedMillis()/1000.0;
                 std::cout << "[PLANNER]: Path not kinematically valid!" << std::endl;
                 return false;
             }
 
             plan_timer.pause();
 
+            exectuion_timer.start();
             controller_.sendAction(traj);
+            exectuion_timer.pause();
         }
         controller_.closeGripper();
     }
@@ -156,12 +162,15 @@ bool Planner::plan()
 
         plan_timer.pause();
 
+        exectuion_timer.start();
         controller_.sendAction(traj);
+        exectuion_timer.pause();
+
         controller_.closeGripper();
     }
 
-    std::cout << plan_timer.elapsedMillis()/1000.0 << std::endl;
     result_.plan_time = plan_timer.elapsedMillis()/1000.0;
+    result_.execution_time = exectuion_timer.elapsedMillis()/1000.0;
     result_.path_valid = result_.path_found = true;
 
     std::cout << GREEN << "[PLANNER]: Solution found!\n";
@@ -916,12 +925,14 @@ bool Planner::startPlanSrvCallback(planner::start_plan::Request& req, planner::s
 
     bool success = this->plan();
 
-    std::cout << CYAN << "[PLANNER]: planning time: " << result_.plan_time << " s" << std::endl;
+    std::cout << CYAN << "[PLANNER]: planning time: " << result_.plan_time << " s    "
+        << "execution time: " << result_.execution_time << " s" << std::endl;
 
     res.path_found = result_.path_found;
     res.path_valid = result_.path_valid;
     res.grasp_success = result_.grasp_success;
     res.plan_time = result_.plan_time;
+    res.execution_time = result_.execution_time;
 
     if (!res.path_found) { res.message = "Unable to find solution!"; }
     else if (!res.path_valid) { res.message = "Solution path found but is not kinematically valid!"; }

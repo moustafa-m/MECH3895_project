@@ -1,9 +1,6 @@
 #include <fstream>
-#include <random>
 #include <planner/start_plan.h>
 #include <gazebo_scene_randomiser_plugin/randomise.h>
-#include <gazebo_msgs/ModelStates.h>
-#include <gazebo_msgs/SetModelState.h>
 #include <ros/ros.h>
 #include <ros/package.h>
 #include <std_srvs/Empty.h>
@@ -87,7 +84,6 @@ private:
 
         ROS_INFO("%s[TESTER]: Performing %d test runs!", BLUE, num_runs_);
         ROS_INFO("%s[TESTER]: Saving log file to:\n%s", BLUE, log_file_.c_str());
-        
         ROS_INFO("%s[TESTER]: Initialised!", GREEN);
     }
 
@@ -119,8 +115,9 @@ private:
             
             // annoyingly, bool variables in ROS srv/msg are represented as uint8, so each one needs to
             // be cast to bool type to print them out correctly
-            file << std::boolalpha << bool(plan_req.response.path_found) << "," << bool(plan_req.response.path_valid) << ","
-                << bool(plan_req.response.grasp_success) << "," << plan_req.response.plan_time << std::endl;
+            file << bool(plan_req.response.path_found) << "," << bool(plan_req.response.path_valid) << ","
+                << bool(plan_req.response.grasp_success) << "," << plan_req.response.plan_time << ","
+                << plan_req.response.execution_time << std::endl;
 
             file.flush();
             file.close();
