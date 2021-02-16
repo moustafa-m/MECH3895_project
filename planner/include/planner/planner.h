@@ -92,7 +92,6 @@ private:
     ros::ServiceClient collisions_client_;
 
     bool save_path_;
-    bool display_path_;
     int timeout_;
     int path_states_;
     std::string planner_name_;

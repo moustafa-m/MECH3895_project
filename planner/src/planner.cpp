@@ -175,7 +175,7 @@ bool Planner::plan()
 
     std::cout << GREEN << "[PLANNER]: Solution found!\n";
 
-    if (save_path_ || display_path_) { this->savePath(); }
+    if (save_path_) { this->savePath(); }
 
     // verify grasp attempt
     std::vector<Eigen::Vector3d> positions;
@@ -299,19 +299,6 @@ void Planner::savePath()
 
     stats_file.flush();
     stats_file.close();
-
-    if (display_path_)
-    {
-        std::string dir = ros::package::getPath("planner") + "/paths";
-        std::string cmd = "cd " + dir + " && ./plot.sh -f " + planner_->getName() + "/" + ss.str() + ".txt";
-        system(cmd.c_str());
-
-        if (!save_path_)
-        {
-            cmd = "rm " + pathtxt + " " + statstxt;
-            system(cmd.c_str());
-        }
-    }
 }
 
 void Planner::clearMarkers()
@@ -363,7 +350,6 @@ void Planner::initROS()
     ros::param::param<int>("~planner/timeout", timeout_, 60);
     ros::param::param<int>("~planner/path_states", path_states_, 10);
     ros::param::param<bool>("~planner/save_path", save_path_, false);
-    ros::param::param<bool>("~planner/display_path", display_path_, false);
 
     if (planner_name_ != "KPIECE1" && planner_name_ != "BFMT" && planner_name_ != "RRTStar")
     {
@@ -381,7 +367,6 @@ void Planner::initROS()
     ROS_INFO_STREAM(BLUE << "timeout\t\t: " << timeout_);
     ROS_INFO_STREAM(BLUE << "path_states\t: " << path_states_);
     ROS_INFO_STREAM(BLUE << "save_path\t: " << std::boolalpha << save_path_);
-    ROS_INFO_STREAM(BLUE << "display_path\t: " << std::boolalpha << display_path_);
     
     ROS_INFO("%s*****************************", BLUE);
 
