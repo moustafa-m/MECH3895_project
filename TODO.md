@@ -5,7 +5,7 @@
   - [x] objects directly behind goal 
   - [ ] objects outside defined workspace
 - [ ] Add grasping as a clutter clearing action
-- [ ] Add execution time logging
+- [x] Add execution time logging
 - [x] use ROS params for planner timeouts, name, IK solve type etc.
 - [x] Write up a complete README
 - [ ] Add media files

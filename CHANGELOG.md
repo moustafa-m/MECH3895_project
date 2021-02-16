@@ -2,6 +2,17 @@
 
 Noteable/major changes will be listed here
 
+## 16th Feb 2021
+
+### Added
+
+- path execution is now timed.
+- error handling for getPushGraspAction()
+
+### Removed
+
+- path display with gnu plot during runtime, it's redundant now due to the implemented visualisation using Rviz.
+
 ## 14th Feb 2021
 
 ### Added
