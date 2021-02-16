@@ -739,11 +739,10 @@ Planner::ActionType Planner::planInClutter(std::vector<int> idxs, std::vector<ob
         state->setX(goal_pos_.x()*0.60);
         state->setY(goal_pos_.y());
         state->setZ(goal_pos_.z());
-        states.push_back(state);
 
-        this->getPushGraspAction(target_geom_, state);
+        if (!this->getPushGraspAction(target_geom_, state)) { return Planner::ActionType::NONE; }
         states.push_back(state);
-
+        
         return Planner::ActionType::PUSH_GRASP;
     }
 }
@@ -856,7 +855,20 @@ bool Planner::getPushGraspAction(const util::CollisionGeometry& geom, ob::Scoped
     state->setX(desired_x);
     state->setY(pos.y());
     state->setZ(pos.z());
-    if (!state_checker_->isValid(state.get())) { state->setX(pos.x()); }
+
+    bool valid = state_checker_->isValid(state.get());
+    if (!valid)
+    {
+        state->setX(pos.x());
+
+        // recheck state validity
+        valid = state_checker_->isValid(state.get());
+        if (!valid)
+        {
+            std::cout << RED << "[PLANNER]: Push grasp action not possible!" << std::endl;
+            return false;
+        }
+    }
 
     return true;
 }
