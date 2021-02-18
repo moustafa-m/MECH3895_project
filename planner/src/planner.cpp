@@ -739,10 +739,12 @@ Planner::ActionType Planner::planInClutter(std::vector<int> idxs, std::vector<ob
         state->setX(goal_pos_.x()*0.60);
         state->setY(goal_pos_.y());
         state->setZ(goal_pos_.z());
-
-        if (!this->getPushGraspAction(target_geom_, state)) { return Planner::ActionType::NONE; }
+        
         states.push_back(state);
         
+        if (!this->getPushGraspAction(target_geom_, state)) { return Planner::ActionType::NONE; }
+        states.push_back(state);
+
         return Planner::ActionType::PUSH_GRASP;
     }
 }
