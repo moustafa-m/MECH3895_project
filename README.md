@@ -39,8 +39,6 @@ These are only for plotting the solution paths if needed.
 **OR**
 - Matplotlib
 
-**NOTE:** gnu plot is used to display the paths during runtime if enabled by the user. (see ```planner/display_path``` in the next section)
-
 ## Parameters
 There are two parameters files, one for [Gazebo](kinova_gazebo/params/gazebo_params.yaml) and one for the [planner](planner/params/params.yaml).
 
@@ -53,7 +51,6 @@ There are two parameters files, one for [Gazebo](kinova_gazebo/params/gazebo_par
 - ```planner/timeout``` - timeout duration for the planner.
 - ```planner/path_states``` - number of states to be interpolated in generated paths.
 - ```planner/save_path``` - bool to trigger saving of solution paths in [paths directory](planner/paths).
-- ```planner/display_path``` - bool to trigger display of solution path in gnu plot. To exit the plot and resume the code, hit ENTER in the terminal window. If path is not being saved, it will temporarily save the path and then delete it once done.
 - ```kinematics_solver/type``` - solve type for the TRAC_IK solver.
 - ```kinematics_solver/timeout``` - solver timeout duration.
 
