@@ -692,35 +692,6 @@ Planner::ActionType Planner::planInClutter(std::vector<int> idxs, std::vector<ob
         // sort by increasing x values
         std::sort(objects.begin(), objects.end(), [](const util::CollisionGeometry& lhs, const util::CollisionGeometry& rhs)
             { return std::abs(lhs.pose.position.x) < std::abs(rhs.pose.position.x); });
-        
-        // TODO: move this inside getPushAction()
-        // checks for objects that are close together, these objects can be pushed using one action
-        for (int i = 0; i < objects.size(); i++)
-        {
-            if (objects[i].name.find("_merged") != std::string::npos) continue;
-            util::CollisionGeometry orig = objects[i];
-
-            for (int j = 0; j < objects.size(); j++)
-            {
-                if (orig.name == objects[j].name || objects[j].name.find("_merged") != std::string::npos) continue;
-
-                bool intersect = (orig.min.x < objects[j].max.x) && (orig.max.x > objects[j].min.x);
-
-                if (intersect)
-                {
-                    objects[j].name += "_merged";
-                    objects[j].dimension.y += orig.dimension.y;
-
-                    objects[j].pose.position.x = (orig.pose.position.x + objects[j].pose.position.x)/2;
-                    objects[j].pose.position.y = (orig.pose.position.y + objects[j].pose.position.y)/2;
-                    
-                    std::cout << BLUE << "[PLANNER]: merging " << objects[j].name << " with " << orig.name
-                            << "\nNew object dimension: " << objects[j].dimension.y << NC << std::endl;
-
-                    objects.erase(objects.begin() + i); 
-                }
-            }
-        }
 
         // move end effector to match object's Y and Z positions
         state->setX(objects[0].pose.position.x - (objects[0].pose.position.x < 0 ? -1 : 1)*0.30);
@@ -753,16 +724,36 @@ bool Planner::getPushAction(std::vector<ob::ScopedState<ob::SE3StateSpace>>& sta
     const util::CollisionGeometry& geom)
 {
     state_checker_->setIKCheck(true);
+    double desired_x = geom.pose.position.x;
+    double desired_y = geom.pose.position.y;
     double init_dist = (1.5*geom.dimension.y) + 0.05;
-    int direction = (geom.pose.position.y > target_geom_.pose.position.y) ? 1 : -1;
 
+    // Checks for objects that are close to the object that will be pushed.
+    // These objects can be pushed using one action.
+    for (int i = 0; i < objs.size(); i++)
+    {
+        if (objs[i] == geom) continue;
+        bool intersect = (geom.min.x < objs[i].max.x) && (geom.max.x > objs[i].min.x);
+
+        if (intersect)
+        {
+            init_dist += objs[i].dimension.y;
+            desired_x = (geom.pose.position.x + objs[i].pose.position.x)/2;
+            desired_y = (geom.pose.position.y + objs[i].pose.position.y)/2;
+            
+            std::cout << BLUE << "[PLANNER]: merging " << objs[i].name << " with " << geom.name
+                << "\nNew init dist: " << init_dist << NC << std::endl;
+        }
+    }
+
+    int direction = (geom.pose.position.y > target_geom_.pose.position.y) ? 1 : -1;
     // initially move to be directly beside blocking object (based on direction)
-    double desired_y = geom.pose.position.y - direction*init_dist;
+    desired_y = desired_y - direction*init_dist;
 
     ob::ScopedState<ob::SE3StateSpace> init_state(space_);
 
     init_state = pdef_->getStartState(0);
-    init_state->setX(geom.pose.position.x);
+    init_state->setX(desired_x);
     init_state->setY(desired_y);
     init_state->setZ(goal_pos_.z());
 
@@ -780,7 +771,7 @@ bool Planner::getPushAction(std::vector<ob::ScopedState<ob::SE3StateSpace>>& sta
 
     if (direction == 0)
     {
-        ROS_ERROR("[PLANNER]: Failed to get push action");
+        std::cout << RED << "[PLANNER]: Failed to get push action" << std::endl;
         return false;
     }
 
