@@ -47,8 +47,6 @@ bool Planner::plan()
         state_checker_->setNonStaticCollisions(false);
         pdef_->clearSolutionPaths();
 
-        controller_.closeGripper();
-
         //TODO: maybe it'd be better to put this inside planInClutter() and make a new
         // method (getAction() or smth) and call that.
         bool exit = false;
@@ -73,11 +71,8 @@ bool Planner::plan()
                 ROS_ERROR("[PLANNER]: Failed to plan an action!");
                 return false;
             }
-            else if (action == Planner::ActionType::PUSH_GRASP)
-            {
-                exit = true;
-                controller_.openGripper();
-            }
+
+            exit = blocking_objs.empty();
 
             for (int i = 0; i < states.size(); i++)
             {
@@ -132,10 +127,9 @@ bool Planner::plan()
             plan_timer.pause();
 
             exectuion_timer.start();
-            controller_.sendAction(traj);
+            this->executeAction(action);
             exectuion_timer.pause();
         }
-        controller_.closeGripper();
     }
     else
     {
@@ -164,9 +158,8 @@ bool Planner::plan()
 
         exectuion_timer.start();
         controller_.sendAction(traj);
-        exectuion_timer.pause();
-
         controller_.closeGripper();
+        exectuion_timer.pause();
     }
 
     result_.plan_time = plan_timer.elapsedMillis()/1000.0;
@@ -710,7 +703,15 @@ Planner::ActionType Planner::planInClutter(std::vector<int> idxs, std::vector<ob
 
         bool success = this->getPushAction(states, objects, objects.front());
 
-        return (success) ? Planner::ActionType::PUSH : Planner::ActionType::NONE;
+        if (success)
+        {
+            return ActionType::PUSH;
+        }
+        else
+        {
+            success = this->getGraspAction(states, objects.front());
+            return (success) ? ActionType::GRASP : ActionType::NONE;
+        }
     }
     else
     {
@@ -820,6 +821,67 @@ bool Planner::getPushAction(std::vector<ob::ScopedState<ob::SE3StateSpace>>& sta
     return true;
 }
 
+bool Planner::getGraspAction(std::vector<ob::ScopedState<ob::SE3StateSpace>>& states, const util::CollisionGeometry& geom)
+{
+    // This implementation only relocates objects by grasping and then dropping them else where.
+    // Would be nice to add sort of a grasping push (grasp and relocated by pushing it) either
+    // here or in the getPushAction() method.
+
+    Eigen::Vector3d dim(geom.dimension.x, geom.dimension.y, geom.dimension.z);
+    Eigen::Quaterniond rot(geom.pose.orientation.w,
+                        geom.pose.orientation.x,
+                        geom.pose.orientation.y,
+                        geom.pose.orientation.z);
+
+    dim = rot * dim;
+    if (dim.y() >= 0.085)
+    {
+        std::cout << RED << "[PLANNER]: Object too large for grasping! y-axis Dimension: " << dim.y()
+            << " (" << geom.dimension.y << " without rot)" << std::endl;
+        return false;
+    }
+
+    ob::ScopedState<ob::SE3StateSpace> grasp_state(space_), relocate_state(space_), start(space_);
+    grasp_state = relocate_state = start = pdef_->getStartState(0);
+    grasp_state->setXYZ(geom.pose.position.x, geom.pose.position.y, goal_pos_.z());
+
+    if (!state_checker_->isValid(grasp_state.get()))
+    {
+        std::cout << RED << "[PLANNER]: " << geom.name << " cannot be grasped!" << std::endl;
+        return false;
+    }
+
+    double x_mean = geom.pose.position.x*0.3;
+    double y_mean = geom.pose.position.y;
+    std::uniform_real_distribution<double> x_dist(x_mean-0.10, x_mean+0.10);
+    std::uniform_real_distribution<double> y_dist(y_mean-0.15, y_mean+0.15);
+    std::random_device rseed;
+    std::mt19937 rng(rseed());
+
+    bool found_state = false;
+    Timer timer;
+    timer.start();
+    while (timer.elapsedMillis() <= 5000)
+    {
+        relocate_state->setXYZ(x_dist(rng), y_dist(rng), start->getZ());
+        if (state_checker_->isValid(relocate_state.get()))
+        {
+            found_state = true;
+            states.push_back(grasp_state);
+            states.push_back(relocate_state);
+            timer.reset();
+            break;
+        }
+    }
+
+    if (!found_state)
+    {
+        std::cout << RED << "[PLANNER]: Failed to plan grasp action!" << std::endl;
+    }
+
+    return found_state;
+}
+
 bool Planner::getPushGraspAction(const util::CollisionGeometry& geom, ob::ScopedState<ob::SE3StateSpace>& state)
 {
     Eigen::Vector3d pos(geom.pose.position.x,
@@ -874,6 +936,48 @@ bool Planner::getPushGraspAction(const util::CollisionGeometry& geom, ob::Scoped
     }
 
     return true;
+}
+
+void Planner::executeAction(Planner::ActionType action)
+{
+    trajectory_msgs::JointTrajectory traj;
+    this->generateTrajectory(traj);
+
+    // initial gripper state
+    if (action == ActionType::GRASP || action == ActionType::PUSH_GRASP) { controller_.openGripper(); }
+    else { controller_.closeGripper(); }
+
+    if (action == ActionType::GRASP)
+    {
+        int num_states = path_states_ - 1;
+        int num_trajectories = traj.points.size()/num_states;
+
+        for (int i = 0; i < num_trajectories; i++)
+        {
+            trajectory_msgs::JointTrajectory split_traj;
+            split_traj.joint_names = traj.joint_names;
+            split_traj.points.reserve(num_states);
+            split_traj.points.insert(split_traj.points.begin(), traj.points.begin()+num_states*i,traj.points.end()-num_states*(num_trajectories-1-i));
+            for (int j = 0; j < split_traj.points.size(); j++)
+            {
+                split_traj.points[j].time_from_start = ros::Duration(15 * (j+1.0)/split_traj.points.size());
+            }
+            controller_.sendAction(split_traj);
+
+            // final gripper state
+            // i = num_trajectories-2 --> first (or second) state in path after which arm should grasp object
+            // i = num_trajectories-1 --> final state in path after which arm should release object
+            if (i == num_trajectories-1) { controller_.openGripper(); }
+            else if (i == num_trajectories-2) { controller_.closeGripper(); }
+        }
+    }
+    else
+    {
+        controller_.sendAction(traj);
+
+        // final gripper state
+        if (action == ActionType::PUSH_GRASP) { controller_.closeGripper(); }
+    }
 }
 
 bool Planner::startPlanSrvCallback(planner::start_plan::Request& req, planner::start_plan::Response& res)
