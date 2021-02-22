@@ -642,7 +642,7 @@ bool Planner::isObjectBlocked(std::vector<int>& idxs)
         bool is_static = std::any_of(static_objs_.begin(), static_objs_.end(), [this, i](const std::string& str)
             { return collision_boxes_[i].name.find(str) != std::string::npos; });
 
-        bool out_of_workspace = std::abs(collision_boxes_[i].pose.position.x) > std::abs(goal_pos_.x()) ||
+        bool out_of_workspace = std::abs(collision_boxes_[i].pose.position.x) > std::abs(goal_pos_.x()) + 0.1 ||
             std::abs(collision_boxes_[i].pose.position.x) < std::abs(start->getX()) ||
             std::abs(collision_boxes_[i].pose.position.y - goal_pos_.y()) > 0.3 ||
             std::abs(collision_boxes_[i].pose.position.z - goal_pos_.z()) > 0.2;
@@ -882,6 +882,9 @@ bool Planner::startPlanSrvCallback(planner::start_plan::Request& req, planner::s
 
     if (req.target.find("_collision") == std::string::npos) req.target += "_collision";
 
+    controller_.goToInit();
+    controller_.openGripper();
+    
     target_geom_.name = req.target;
     target_geom_.dimension.x = target_geom_.dimension.y = target_geom_.dimension.z = -1;
     this->update();
@@ -905,9 +908,6 @@ bool Planner::startPlanSrvCallback(planner::start_plan::Request& req, planner::s
         res.message = "Unable to start, target is out of reach!";
         return true;
     }
-
-    controller_.goToInit();
-    controller_.openGripper();
 
     std::vector<Eigen::Vector3d> start_positions; std::vector<Eigen::Quaterniond> start_orientations;
     manipulator_.solveFK(start_positions, start_orientations);
