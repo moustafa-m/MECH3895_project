@@ -3,7 +3,7 @@
   <!-- these are the arguments you can pass this launch file, for example paused:=true -->  
   <arg name="kinova_robotType" default="j2s7s300"/>
   <arg name="kinova_robotName" default="$(arg kinova_robotType)"/>
-  <arg name="world" default="kinova_tableV1"/>
+  <arg name="world" default="kinova_table"/>
   <arg name="paused" default="true"/>
   <arg name="use_sim_time" default="true"/>
   <arg name="gui" default="true"/>
