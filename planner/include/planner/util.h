@@ -6,13 +6,8 @@
 #include <geometry_msgs/Pose.h>
 #include <cmath>
 #include <iostream>
-#include <chrono>
 #include <boost/shared_ptr.hpp>
 #include "defines.h"
-
-namespace chrono = std::chrono;
-
-typedef chrono::high_resolution_clock HighResClk;
 
 namespace util
 {

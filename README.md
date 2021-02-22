@@ -39,8 +39,6 @@ These are only for plotting the solution paths if needed.
 **OR**
 - Matplotlib
 
-**NOTE:** gnu plot is used to display the paths during runtime if enabled by the user. (see ```planner/display_path``` in the next section)
-
 ## Parameters
 There are two parameters files, one for [Gazebo](kinova_gazebo/params/gazebo_params.yaml) and one for the [planner](planner/params/params.yaml).
 
@@ -53,7 +51,6 @@ There are two parameters files, one for [Gazebo](kinova_gazebo/params/gazebo_par
 - ```planner/timeout``` - timeout duration for the planner.
 - ```planner/path_states``` - number of states to be interpolated in generated paths.
 - ```planner/save_path``` - bool to trigger saving of solution paths in [paths directory](planner/paths).
-- ```planner/display_path``` - bool to trigger display of solution path in gnu plot. To exit the plot and resume the code, hit ENTER in the terminal window. If path is not being saved, it will temporarily save the path and then delete it once done.
 - ```kinematics_solver/type``` - solve type for the TRAC_IK solver.
 - ```kinematics_solver/timeout``` - solver timeout duration.
 
@@ -61,7 +58,7 @@ There are two parameters files, one for [Gazebo](kinova_gazebo/params/gazebo_par
 ### Rviz
 An Rviz node is used to visualise the data that is being used (such as object geometries) and processed data (planner paths).
 
-The paths are visualised by arrows. Each arrow indicates a waypoint in the path and its pose is the same as the end-effector pose for that waypoint.
+The paths are visualised by arrows. Each arrow indicates a waypoint in the path and its pose is the same as the end-effector pose for that waypoint (the arrows point in the z-axis direction of the end-effector as this is the axis that indicates the pointing direction).
 
 When planning in clutter, the arrows have different colour due to the path being divided into sub-paths for different actions (move, push, reset etc.).
 
@@ -70,7 +67,7 @@ Additionally, the goal object is displayed in blue, and the final goal state for
 **NOTE:** The markers will not appear again if unchecked in Rviz, this is because they are published once per plan.
 
 ### Gazebo Geometries Plugin
-This is a world plugin that was made to obtain collision geometries of all the objects. The geometries are all obtained as box shapes even if the object itself is not a box, this is to simplify the collision detection process. The geometries are visualised in Rviz through by plugin.
+This is a world plugin that was made to obtain collision geometries of all the objects. The geometries are all obtained as box shapes even if the object itself is not a box, this is to simplify the collision detection process. The geometries are visualised in Rviz by this plugin.
 
 The plugin attempts to get Object Oriented Bounding Boxes (OOBB), if it is unable to, Axis Aligned Bounding Boxes (AABB) are obtained instead.
 

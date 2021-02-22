@@ -2,6 +2,34 @@
 
 Noteable/major changes will be listed here
 
+## 22nd Feb 2021
+
+### Added
+
+- planner now checks if arm needs to re-initialise end effector position when replanning.
+- end effector starting x-position is used as a limit when checking for objects to clear.
+
+## 16th Feb 2021
+
+### Added
+
+- path execution is now timed.
+- error handling for getPushGraspAction()
+
+### Removed
+
+- path display with gnu plot during runtime, it's redundant now due to the implemented visualisation using Rviz.
+
+## 14th Feb 2021
+
+### Added
+
+- created a Timer class and integrated in Planner class.
+
+### Modified
+
+- Plan time now includes the intial validation phase.
+
 ## 11th Feb 2021
 
 ### Modified

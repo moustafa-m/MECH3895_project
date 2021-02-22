@@ -26,6 +26,7 @@
 #include "defines.h"
 #include "manipulator.h"
 #include "controller.h"
+#include "timer.h"
 
 namespace ob = ompl::base;
 namespace og = ompl::geometric;
@@ -48,11 +49,12 @@ public:
         bool path_valid = false;
         bool grasp_success = false;
         double plan_time = 0.0;
+        double execution_time = 0.0;
 
         void reset()
         {
             path_found = path_valid = grasp_success = false;
-            plan_time = 0.0;
+            plan_time = execution_time = 0.0;
         }
     } PlannerResult;
 
@@ -90,7 +92,6 @@ private:
     ros::ServiceClient collisions_client_;
 
     bool save_path_;
-    bool display_path_;
     int timeout_;
     int path_states_;
     std::string planner_name_;
