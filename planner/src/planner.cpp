@@ -47,8 +47,6 @@ bool Planner::plan()
         state_checker_->setNonStaticCollisions(false);
         pdef_->clearSolutionPaths();
 
-        controller_.closeGripper();
-
         //TODO: maybe it'd be better to put this inside planInClutter() and make a new
         // method (getAction() or smth) and call that.
         bool exit = false;
@@ -67,17 +65,14 @@ bool Planner::plan()
             Planner::ActionType action = this->planInClutter(blocking_objs, states);
             if (action == Planner::ActionType::NONE)
             {
-                result_.path_found = result_.path_valid = result_.grasp_success = false;
+                result_.partial_solution = true;
                 result_.plan_time = plan_timer.elapsedMillis()/1000.0;
                 result_.execution_time = exectuion_timer.elapsedMillis()/1000.0;
                 ROS_ERROR("[PLANNER]: Failed to plan an action!");
                 return false;
             }
-            else if (action == Planner::ActionType::PUSH_GRASP)
-            {
-                exit = true;
-                controller_.openGripper();
-            }
+
+            exit = blocking_objs.empty();
 
             for (int i = 0; i < states.size(); i++)
             {
@@ -122,7 +117,7 @@ bool Planner::plan()
             trajectory_msgs::JointTrajectory traj;
             if (!this->generateTrajectory(traj))
             {
-                result_.path_valid = result_.grasp_success = false;
+                result_.partial_solution = true;
                 result_.plan_time = plan_timer.elapsedMillis()/1000.0;
                 result_.execution_time = exectuion_timer.elapsedMillis()/1000.0;
                 std::cout << "[PLANNER]: Path not kinematically valid!" << std::endl;
@@ -132,10 +127,9 @@ bool Planner::plan()
             plan_timer.pause();
 
             exectuion_timer.start();
-            controller_.sendAction(traj);
+            this->executeAction(action);
             exectuion_timer.pause();
         }
-        controller_.closeGripper();
     }
     else
     {
@@ -154,7 +148,7 @@ bool Planner::plan()
         trajectory_msgs::JointTrajectory traj;
         if (!this->generateTrajectory(traj))
         {
-            result_.path_valid = result_.grasp_success = false;
+            result_.partial_solution = true;
             result_.plan_time = plan_timer.elapsedMillis()/1000.0;
             std::cout << "[PLANNER]: Path not kinematically valid!" << std::endl;
             return false;
@@ -164,14 +158,13 @@ bool Planner::plan()
 
         exectuion_timer.start();
         controller_.sendAction(traj);
-        exectuion_timer.pause();
-
         controller_.closeGripper();
+        exectuion_timer.pause();
     }
 
     result_.plan_time = plan_timer.elapsedMillis()/1000.0;
     result_.execution_time = exectuion_timer.elapsedMillis()/1000.0;
-    result_.path_valid = result_.path_found = true;
+    result_.path_found = true;
 
     std::cout << GREEN << "[PLANNER]: Solution found!\n";
 
@@ -642,7 +635,7 @@ bool Planner::isObjectBlocked(std::vector<int>& idxs)
         bool is_static = std::any_of(static_objs_.begin(), static_objs_.end(), [this, i](const std::string& str)
             { return collision_boxes_[i].name.find(str) != std::string::npos; });
 
-        bool out_of_workspace = std::abs(collision_boxes_[i].pose.position.x) > std::abs(goal_pos_.x()) ||
+        bool out_of_workspace = std::abs(collision_boxes_[i].pose.position.x) > std::abs(goal_pos_.x()) + 0.1 ||
             std::abs(collision_boxes_[i].pose.position.x) < std::abs(start->getX()) ||
             std::abs(collision_boxes_[i].pose.position.y - goal_pos_.y()) > 0.3 ||
             std::abs(collision_boxes_[i].pose.position.z - goal_pos_.z()) > 0.2;
@@ -710,7 +703,15 @@ Planner::ActionType Planner::planInClutter(std::vector<int> idxs, std::vector<ob
 
         bool success = this->getPushAction(states, objects, objects.front());
 
-        return (success) ? Planner::ActionType::PUSH : Planner::ActionType::NONE;
+        if (success)
+        {
+            return ActionType::PUSH;
+        }
+        else
+        {
+            success = this->getGraspAction(states, objects.front());
+            return (success) ? ActionType::GRASP : ActionType::NONE;
+        }
     }
     else
     {
@@ -733,10 +734,18 @@ Planner::ActionType Planner::planInClutter(std::vector<int> idxs, std::vector<ob
 bool Planner::getPushAction(std::vector<ob::ScopedState<ob::SE3StateSpace>>& states, std::vector<util::CollisionGeometry>& objs,
     const util::CollisionGeometry& geom)
 {
+    if (std::abs(goal_pos_.x()) - std::abs(geom.pose.position.x) <= 0.07)
+    {
+        std::cout << RED << "[PLANNER]: object to be pushed is too close to target!" << std::endl;
+        return false;
+    }
+
     state_checker_->setIKCheck(true);
     double desired_x = geom.pose.position.x;
     double desired_y = geom.pose.position.y;
-    double init_dist = (1.5*geom.dimension.y) + 0.05;
+    double init_dist = geom.dimension.y + 0.05;
+
+    util::CollisionGeometry new_geom = geom;
 
     // Checks for objects that are close to the object that will be pushed.
     // These objects can be pushed using one action.
@@ -751,8 +760,23 @@ bool Planner::getPushAction(std::vector<ob::ScopedState<ob::SE3StateSpace>>& sta
             desired_x = (geom.pose.position.x + objs[i].pose.position.x)/2;
             desired_y = (geom.pose.position.y + objs[i].pose.position.y)/2;
             
+            new_geom.pose.position.x = desired_x;
+            new_geom.pose.position.y = desired_y;
+
+            new_geom.dimension.y += std::abs(new_geom.pose.position.y - objs[i].pose.position.y)
+                                    + 0.5*(new_geom.dimension.y+objs[i].dimension.y);
+            new_geom.dimension.x += std::abs(new_geom.pose.position.x - objs[i].pose.position.x)
+                                    + 0.5*(new_geom.dimension.x+objs[i].dimension.x);
+
+            new_geom.min.y = new_geom.pose.position.y - (new_geom.dimension.y*0.5);
+            new_geom.max.y = new_geom.pose.position.y + (new_geom.dimension.y*0.5);
+
+            new_geom.min.x = new_geom.pose.position.x - (new_geom.dimension.x*0.5);
+            new_geom.max.x = new_geom.pose.position.x + (new_geom.dimension.x*0.5);
+
             std::cout << BLUE << "[PLANNER]: merging " << objs[i].name << " with " << geom.name
-                << "\nNew init dist: " << init_dist << NC << std::endl;
+                << "\nNew init dist: " << init_dist << "m new dim.y: " << new_geom.dimension.y
+                << "m" << NC << std::endl;
         }
     }
 
@@ -794,13 +818,37 @@ bool Planner::getPushAction(std::vector<ob::ScopedState<ob::SE3StateSpace>>& sta
     // push action
     push_state->setY(desired_y + direction*(push_dist));
 
-    // propagate the arm state along the path and check if is valid
+    // propagate the arm and object state along the path and check if is valid
     for (int i = 1; i <= 10; i++)
     {
+        // object
+        double geom_y_pos = new_geom.pose.position.y + direction * (clearance*i/10);
+
+        for (int j = 0; j < collision_boxes_.size(); j++)
+        {
+            bool is_static = std::any_of(static_objs_.begin(), static_objs_.end(), [this, j](const std::string& str)
+                { return collision_boxes_[j].name.find(str) != std::string::npos; });
+            if (!is_static) continue;
+
+            double max_y, min_y;
+            min_y = geom_y_pos - (new_geom.dimension.y*0.5);
+            max_y = geom_y_pos + (new_geom.dimension.y*0.5);
+
+            bool collide = (new_geom.min.x < collision_boxes_[j].max.x) && (new_geom.max.x > collision_boxes_[j].min.x) &&
+                (min_y < collision_boxes_[j].max.y) && (max_y > collision_boxes_[j].min.y) &&
+                (new_geom.min.z + 0.03 < collision_boxes_[j].max.z) && (new_geom.max.z - 0.03 > collision_boxes_[j].min.z);
+            if (collide)
+            {
+                std::cout << RED << "[PLANNER]: object collides with " << collision_boxes_[j].name << " if pushed!"
+                    << std::endl;
+                return false;
+            }
+        }
+
+        // arm
         ob::ScopedState<ob::SE3StateSpace> state(space_);
         state = push_state;
         state->setY(desired_y + direction * (push_dist*i/10));
-
         if (!state_checker_->isValid(state.get()))
         {
             std::cout << RED << "[PLANNER]: Push action not possible!" << std::endl;
@@ -818,6 +866,67 @@ bool Planner::getPushAction(std::vector<ob::ScopedState<ob::SE3StateSpace>>& sta
     states.push_back(push_state);
 
     return true;
+}
+
+bool Planner::getGraspAction(std::vector<ob::ScopedState<ob::SE3StateSpace>>& states, const util::CollisionGeometry& geom)
+{
+    // This implementation only relocates objects by grasping and then dropping them else where.
+    // Would be nice to add sort of a grasping push (grasp and relocated by pushing it) either
+    // here or in the getPushAction() method.
+
+    Eigen::Vector3d dim(geom.dimension.x, geom.dimension.y, geom.dimension.z);
+    Eigen::Quaterniond rot(geom.pose.orientation.w,
+                        geom.pose.orientation.x,
+                        geom.pose.orientation.y,
+                        geom.pose.orientation.z);
+
+    dim = rot * dim;
+    if (dim.y() >= 0.085)
+    {
+        std::cout << RED << "[PLANNER]: Object too large for grasping! y-axis Dimension: " << dim.y()
+            << " (" << geom.dimension.y << " without rot)" << std::endl;
+        return false;
+    }
+
+    ob::ScopedState<ob::SE3StateSpace> grasp_state(space_), relocate_state(space_), start(space_);
+    grasp_state = relocate_state = start = pdef_->getStartState(0);
+    grasp_state->setXYZ(geom.pose.position.x, geom.pose.position.y, goal_pos_.z());
+
+    if (!state_checker_->isValid(grasp_state.get()))
+    {
+        std::cout << RED << "[PLANNER]: " << geom.name << " cannot be grasped!" << std::endl;
+        return false;
+    }
+
+    double x_mean = geom.pose.position.x*0.3;
+    double y_mean = geom.pose.position.y;
+    std::uniform_real_distribution<double> x_dist(x_mean-0.10, x_mean+0.10);
+    std::uniform_real_distribution<double> y_dist(y_mean-0.15, y_mean+0.15);
+    std::random_device rseed;
+    std::mt19937 rng(rseed());
+
+    bool found_state = false;
+    Timer timer;
+    timer.start();
+    while (timer.elapsedMillis() <= 5000)
+    {
+        relocate_state->setXYZ(x_dist(rng), y_dist(rng), start->getZ());
+        if (state_checker_->isValid(relocate_state.get()))
+        {
+            found_state = true;
+            states.push_back(grasp_state);
+            states.push_back(relocate_state);
+            timer.reset();
+            break;
+        }
+    }
+
+    if (!found_state)
+    {
+        std::cout << RED << "[PLANNER]: Failed to plan grasp action!" << std::endl;
+    }
+
+    return found_state;
 }
 
 bool Planner::getPushGraspAction(const util::CollisionGeometry& geom, ob::ScopedState<ob::SE3StateSpace>& state)
@@ -876,12 +985,57 @@ bool Planner::getPushGraspAction(const util::CollisionGeometry& geom, ob::Scoped
     return true;
 }
 
+void Planner::executeAction(Planner::ActionType action)
+{
+    trajectory_msgs::JointTrajectory traj;
+    this->generateTrajectory(traj);
+
+    // initial gripper state
+    if (action == ActionType::GRASP || action == ActionType::PUSH_GRASP) { controller_.openGripper(); }
+    else { controller_.closeGripper(); }
+
+    if (action == ActionType::GRASP)
+    {
+        int num_states = path_states_ - 1;
+        int num_trajectories = traj.points.size()/num_states;
+
+        for (int i = 0; i < num_trajectories; i++)
+        {
+            trajectory_msgs::JointTrajectory split_traj;
+            split_traj.joint_names = traj.joint_names;
+            split_traj.points.reserve(num_states);
+            split_traj.points.insert(split_traj.points.begin(), traj.points.begin()+num_states*i,traj.points.end()-num_states*(num_trajectories-1-i));
+            for (int j = 0; j < split_traj.points.size(); j++)
+            {
+                split_traj.points[j].time_from_start = ros::Duration(15 * (j+1.0)/split_traj.points.size());
+            }
+            controller_.sendAction(split_traj);
+
+            // final gripper state
+            // i = num_trajectories-2 --> first (or second) state in path after which arm should grasp object
+            // i = num_trajectories-1 --> final state in path after which arm should release object
+            if (i == num_trajectories-1) { controller_.openGripper(); }
+            else if (i == num_trajectories-2) { controller_.closeGripper(); }
+        }
+    }
+    else
+    {
+        controller_.sendAction(traj);
+
+        // final gripper state
+        if (action == ActionType::PUSH_GRASP) { controller_.closeGripper(); }
+    }
+}
+
 bool Planner::startPlanSrvCallback(planner::start_plan::Request& req, planner::start_plan::Response& res)
 {
     ROS_INFO("%s[PLANNER]: Received plan request for [%s]", CYAN, req.target.c_str());
 
     if (req.target.find("_collision") == std::string::npos) req.target += "_collision";
 
+    controller_.goToInit();
+    controller_.openGripper();
+    
     target_geom_.name = req.target;
     target_geom_.dimension.x = target_geom_.dimension.y = target_geom_.dimension.z = -1;
     this->update();
@@ -890,7 +1044,7 @@ bool Planner::startPlanSrvCallback(planner::start_plan::Request& req, planner::s
                                             target_geom_.pose.position.y,
                                             target_geom_.pose.position.z);
 
-    res.path_found = res.path_valid = res.grasp_success = false;
+    res.path_found = res.partial_solution = res.grasp_success = false;
     res.plan_time = res.execution_time = 0.0;
 
     if (target_geom_.dimension.x == -1)
@@ -906,9 +1060,6 @@ bool Planner::startPlanSrvCallback(planner::start_plan::Request& req, planner::s
         return true;
     }
 
-    controller_.goToInit();
-    controller_.openGripper();
-
     std::vector<Eigen::Vector3d> start_positions; std::vector<Eigen::Quaterniond> start_orientations;
     manipulator_.solveFK(start_positions, start_orientations);
 
@@ -918,13 +1069,13 @@ bool Planner::startPlanSrvCallback(planner::start_plan::Request& req, planner::s
         << "execution time: " << result_.execution_time << " s" << std::endl;
 
     res.path_found = result_.path_found;
-    res.path_valid = result_.path_valid;
+    res.partial_solution = result_.partial_solution;
     res.grasp_success = result_.grasp_success;
     res.plan_time = result_.plan_time;
     res.execution_time = result_.execution_time;
 
     if (!res.path_found) { res.message = "Unable to find solution!"; }
-    else if (!res.path_valid) { res.message = "Solution path found but is not kinematically valid!"; }
+    else if (!res.partial_solution) { res.message = "Only found partial solution!"; }
     else if (res.grasp_success) { res.message = "Solution found and grasp attempt was successful!"; }
     else { res.message = "Solution found but grasp attempt failed!"; }
 

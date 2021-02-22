@@ -115,7 +115,7 @@ private:
             
             // annoyingly, bool variables in ROS srv/msg are represented as uint8, so each one needs to
             // be cast to bool type to print them out correctly
-            file << bool(plan_req.response.path_found) << "," << bool(plan_req.response.path_valid) << ","
+            file << bool(plan_req.response.path_found) << "," << bool(plan_req.response.partial_solution) << ","
                 << bool(plan_req.response.grasp_success) << "," << plan_req.response.plan_time << ","
                 << plan_req.response.execution_time << std::endl;
 

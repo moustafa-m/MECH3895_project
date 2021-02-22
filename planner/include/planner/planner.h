@@ -34,7 +34,6 @@ namespace og = ompl::geometric;
 class Planner
 {
 public:
-    // TODO: use this in implementation
     enum ActionType
     {
         NONE = -1,
@@ -46,14 +45,14 @@ public:
     typedef struct PlannerResult
     {
         bool path_found = false;
-        bool path_valid = false;
+        bool partial_solution = false;
         bool grasp_success = false;
         double plan_time = 0.0;
         double execution_time = 0.0;
 
         void reset()
         {
-            path_found = path_valid = grasp_success = false;
+            path_found = partial_solution = grasp_success = false;
             plan_time = execution_time = 0.0;
         }
     } PlannerResult;
@@ -82,7 +81,9 @@ private:
     Planner::ActionType planInClutter(std::vector<int> idxs, std::vector<ob::ScopedState<ob::SE3StateSpace>>& states);
     bool getPushAction(std::vector<ob::ScopedState<ob::SE3StateSpace>>& states, std::vector<util::CollisionGeometry>& objs,
         const util::CollisionGeometry& geom);
+    bool getGraspAction(std::vector<ob::ScopedState<ob::SE3StateSpace>>& states, const util::CollisionGeometry& geom);
     bool getPushGraspAction(const util::CollisionGeometry& geom, ob::ScopedState<ob::SE3StateSpace>& state);
+    void executeAction(Planner::ActionType action);
     bool startPlanSrvCallback(planner::start_plan::Request& req, planner::start_plan::Response& res);
 
     ros::NodeHandle nh_;

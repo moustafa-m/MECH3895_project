@@ -1,10 +1,10 @@
-- [ ] Add checks for static objects when planning to clear a path
+- [x] Add checks for static objects when planning to clear a path
   - [x] for pushing actions
-  - [ ] for grasping actions
-- [ ] Consider objects that are not blocking the object but may block the arm while clearing a path to reach the object
+  - [x] for grasping actions
+- [x] Consider objects that are not blocking the object but may block the arm while clearing a path to reach the object
   - [x] objects directly behind goal 
-  - [ ] objects outside defined workspace
-- [ ] Add grasping as a clutter clearing action
+  - [ ] ~~objects outside defined workspace~~
+- [x] Add grasping as a clutter clearing action
 - [x] Add execution time logging
 - [x] use ROS params for planner timeouts, name, IK solve type etc.
 - [x] Write up a complete README
