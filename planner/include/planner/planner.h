@@ -45,14 +45,14 @@ public:
     typedef struct PlannerResult
     {
         bool path_found = false;
-        bool path_valid = false;
+        bool partial_solution = false;
         bool grasp_success = false;
         double plan_time = 0.0;
         double execution_time = 0.0;
 
         void reset()
         {
-            path_found = path_valid = grasp_success = false;
+            path_found = partial_solution = grasp_success = false;
             plan_time = execution_time = 0.0;
         }
     } PlannerResult;

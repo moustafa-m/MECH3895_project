@@ -65,7 +65,7 @@ bool Planner::plan()
             Planner::ActionType action = this->planInClutter(blocking_objs, states);
             if (action == Planner::ActionType::NONE)
             {
-                result_.path_found = result_.path_valid = result_.grasp_success = false;
+                result_.partial_solution = true;
                 result_.plan_time = plan_timer.elapsedMillis()/1000.0;
                 result_.execution_time = exectuion_timer.elapsedMillis()/1000.0;
                 ROS_ERROR("[PLANNER]: Failed to plan an action!");
@@ -117,7 +117,7 @@ bool Planner::plan()
             trajectory_msgs::JointTrajectory traj;
             if (!this->generateTrajectory(traj))
             {
-                result_.path_valid = result_.grasp_success = false;
+                result_.partial_solution = true;
                 result_.plan_time = plan_timer.elapsedMillis()/1000.0;
                 result_.execution_time = exectuion_timer.elapsedMillis()/1000.0;
                 std::cout << "[PLANNER]: Path not kinematically valid!" << std::endl;
@@ -148,7 +148,7 @@ bool Planner::plan()
         trajectory_msgs::JointTrajectory traj;
         if (!this->generateTrajectory(traj))
         {
-            result_.path_valid = result_.grasp_success = false;
+            result_.partial_solution = true;
             result_.plan_time = plan_timer.elapsedMillis()/1000.0;
             std::cout << "[PLANNER]: Path not kinematically valid!" << std::endl;
             return false;
@@ -164,7 +164,7 @@ bool Planner::plan()
 
     result_.plan_time = plan_timer.elapsedMillis()/1000.0;
     result_.execution_time = exectuion_timer.elapsedMillis()/1000.0;
-    result_.path_valid = result_.path_found = true;
+    result_.path_found = true;
 
     std::cout << GREEN << "[PLANNER]: Solution found!\n";
 
@@ -1044,7 +1044,7 @@ bool Planner::startPlanSrvCallback(planner::start_plan::Request& req, planner::s
                                             target_geom_.pose.position.y,
                                             target_geom_.pose.position.z);
 
-    res.path_found = res.path_valid = res.grasp_success = false;
+    res.path_found = res.partial_solution = res.grasp_success = false;
     res.plan_time = res.execution_time = 0.0;
 
     if (target_geom_.dimension.x == -1)
@@ -1069,13 +1069,13 @@ bool Planner::startPlanSrvCallback(planner::start_plan::Request& req, planner::s
         << "execution time: " << result_.execution_time << " s" << std::endl;
 
     res.path_found = result_.path_found;
-    res.path_valid = result_.path_valid;
+    res.partial_solution = result_.partial_solution;
     res.grasp_success = result_.grasp_success;
     res.plan_time = result_.plan_time;
     res.execution_time = result_.execution_time;
 
     if (!res.path_found) { res.message = "Unable to find solution!"; }
-    else if (!res.path_valid) { res.message = "Solution path found but is not kinematically valid!"; }
+    else if (!res.partial_solution) { res.message = "Only found partial solution!"; }
     else if (res.grasp_success) { res.message = "Solution found and grasp attempt was successful!"; }
     else { res.message = "Solution found but grasp attempt failed!"; }
 
