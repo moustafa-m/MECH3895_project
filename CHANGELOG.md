@@ -8,6 +8,14 @@ Noteable/major changes will be listed here
 
 - planner now checks if arm needs to re-initialise end effector position when replanning.
 - end effector starting x-position is used as a limit when checking for objects to clear.
+- grasping action implemented.
+  - added getGraspAction() method.
+  - added executeAction() method, this essentially just determines initial and final states of the gripper based on the action type and splits the trajectory for the action if needed.
+- when planning a push action, static collision check for the pushed object is performed.
+
+### Modified
+
+- path_valid bool in start_plan srv replaced with partial_solution bool.
 
 ## 16th Feb 2021
 
