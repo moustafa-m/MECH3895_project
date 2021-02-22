@@ -443,7 +443,7 @@ bool Planner::generateTrajectory(trajectory_msgs::JointTrajectory& traj)
             traj.points[i].velocities[j] = 0;
             traj.points[i].accelerations[j] = 0;
         }
-        traj.points[i].time_from_start = ros::Duration(2+(i*2));
+        traj.points[i].time_from_start = ros::Duration((i+1));
 
         if (!ros::ok()) { exit(0); }
     }
@@ -681,6 +681,8 @@ Planner::ActionType Planner::planInClutter(std::vector<int> idxs, std::vector<ob
     ob::ScopedState<ob::SE3StateSpace> state(space_);
     state = pdef_->getStartState(0);
 
+    bool should_init = std::abs(state->getY() - goal_pos_.y()) > 0.03;
+
     if (!idxs.empty())
     {
         std::vector<util::CollisionGeometry> objects;
@@ -697,12 +699,14 @@ Planner::ActionType Planner::planInClutter(std::vector<int> idxs, std::vector<ob
         std::sort(objects.begin(), objects.end(), [](const util::CollisionGeometry& lhs, const util::CollisionGeometry& rhs)
             { return std::abs(lhs.pose.position.x) < std::abs(rhs.pose.position.x); });
 
-        // move end effector to match object's Y and Z positions
-        state->setX(objects[0].pose.position.x - (objects[0].pose.position.x < 0 ? -1 : 1)*0.30);
-        state->setY(goal_pos_.y());
-        state->setZ(goal_pos_.z());
-        
-        states.push_back(state);
+        if (should_init)
+        {
+            // move end effector to match object's Y and Z positions
+            state->setX(objects[0].pose.position.x * 0.60);
+            state->setY(goal_pos_.y());
+            state->setZ(goal_pos_.z());
+            states.push_back(state);
+        }
 
         bool success = this->getPushAction(states, objects, objects.front());
 
@@ -710,12 +714,14 @@ Planner::ActionType Planner::planInClutter(std::vector<int> idxs, std::vector<ob
     }
     else
     {
-        // if the indices array is empty, objects are surronding the object but may be pushed by a grasp attempt
-        state->setX(goal_pos_.x()*0.60);
-        state->setY(goal_pos_.y());
-        state->setZ(goal_pos_.z());
-        
-        states.push_back(state);
+        if (should_init)
+        {
+            // if the indices array is empty, objects are surronding the object but may be pushed by a grasp attempt
+            state->setX(goal_pos_.x()*0.60);
+            state->setY(goal_pos_.y());
+            state->setZ(goal_pos_.z());
+            states.push_back(state);
+        }
         
         if (!this->getPushGraspAction(target_geom_, state)) { return Planner::ActionType::NONE; }
         states.push_back(state);
@@ -885,7 +891,7 @@ bool Planner::startPlanSrvCallback(planner::start_plan::Request& req, planner::s
                                             target_geom_.pose.position.z);
 
     res.path_found = res.path_valid = res.grasp_success = false;
-    res.plan_time = 0.0;
+    res.plan_time = res.execution_time = 0.0;
 
     if (target_geom_.dimension.x == -1)
     {
