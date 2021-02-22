@@ -734,10 +734,18 @@ Planner::ActionType Planner::planInClutter(std::vector<int> idxs, std::vector<ob
 bool Planner::getPushAction(std::vector<ob::ScopedState<ob::SE3StateSpace>>& states, std::vector<util::CollisionGeometry>& objs,
     const util::CollisionGeometry& geom)
 {
+    if (std::abs(goal_pos_.x()) - std::abs(geom.pose.position.x) <= 0.07)
+    {
+        std::cout << RED << "[PLANNER]: object to be pushed is too close to target!" << std::endl;
+        return false;
+    }
+
     state_checker_->setIKCheck(true);
     double desired_x = geom.pose.position.x;
     double desired_y = geom.pose.position.y;
-    double init_dist = (1.5*geom.dimension.y) + 0.05;
+    double init_dist = geom.dimension.y + 0.05;
+
+    util::CollisionGeometry new_geom = geom;
 
     // Checks for objects that are close to the object that will be pushed.
     // These objects can be pushed using one action.
@@ -752,8 +760,23 @@ bool Planner::getPushAction(std::vector<ob::ScopedState<ob::SE3StateSpace>>& sta
             desired_x = (geom.pose.position.x + objs[i].pose.position.x)/2;
             desired_y = (geom.pose.position.y + objs[i].pose.position.y)/2;
             
+            new_geom.pose.position.x = desired_x;
+            new_geom.pose.position.y = desired_y;
+
+            new_geom.dimension.y += std::abs(new_geom.pose.position.y - objs[i].pose.position.y)
+                                    + 0.5*(new_geom.dimension.y+objs[i].dimension.y);
+            new_geom.dimension.x += std::abs(new_geom.pose.position.x - objs[i].pose.position.x)
+                                    + 0.5*(new_geom.dimension.x+objs[i].dimension.x);
+
+            new_geom.min.y = new_geom.pose.position.y - (new_geom.dimension.y*0.5);
+            new_geom.max.y = new_geom.pose.position.y + (new_geom.dimension.y*0.5);
+
+            new_geom.min.x = new_geom.pose.position.x - (new_geom.dimension.x*0.5);
+            new_geom.max.x = new_geom.pose.position.x + (new_geom.dimension.x*0.5);
+
             std::cout << BLUE << "[PLANNER]: merging " << objs[i].name << " with " << geom.name
-                << "\nNew init dist: " << init_dist << NC << std::endl;
+                << "\nNew init dist: " << init_dist << "m new dim.y: " << new_geom.dimension.y
+                << "m" << NC << std::endl;
         }
     }
 
@@ -795,13 +818,37 @@ bool Planner::getPushAction(std::vector<ob::ScopedState<ob::SE3StateSpace>>& sta
     // push action
     push_state->setY(desired_y + direction*(push_dist));
 
-    // propagate the arm state along the path and check if is valid
+    // propagate the arm and object state along the path and check if is valid
     for (int i = 1; i <= 10; i++)
     {
+        // object
+        double geom_y_pos = new_geom.pose.position.y + direction * (clearance*i/10);
+
+        for (int j = 0; j < collision_boxes_.size(); j++)
+        {
+            bool is_static = std::any_of(static_objs_.begin(), static_objs_.end(), [this, j](const std::string& str)
+                { return collision_boxes_[j].name.find(str) != std::string::npos; });
+            if (!is_static) continue;
+
+            double max_y, min_y;
+            min_y = geom_y_pos - (new_geom.dimension.y*0.5);
+            max_y = geom_y_pos + (new_geom.dimension.y*0.5);
+
+            bool collide = (new_geom.min.x < collision_boxes_[j].max.x) && (new_geom.max.x > collision_boxes_[j].min.x) &&
+                (min_y < collision_boxes_[j].max.y) && (max_y > collision_boxes_[j].min.y) &&
+                (new_geom.min.z + 0.03 < collision_boxes_[j].max.z) && (new_geom.max.z - 0.03 > collision_boxes_[j].min.z);
+            if (collide)
+            {
+                std::cout << RED << "[PLANNER]: object collides with " << collision_boxes_[j].name << " if pushed!"
+                    << std::endl;
+                return false;
+            }
+        }
+
+        // arm
         ob::ScopedState<ob::SE3StateSpace> state(space_);
         state = push_state;
         state->setY(desired_y + direction * (push_dist*i/10));
-
         if (!state_checker_->isValid(state.get()))
         {
             std::cout << RED << "[PLANNER]: Push action not possible!" << std::endl;
