@@ -634,12 +634,16 @@ bool Planner::isObjectBlocked(std::vector<int>& idxs)
     idxs.clear();
     bool clear = true;
 
+    ob::ScopedState<ob::SE3StateSpace> start(space_);
+    start = pdef_->getStartState(0);
+
     for (size_t i = 0; i < collision_boxes_.size(); i++)
     {
         bool is_static = std::any_of(static_objs_.begin(), static_objs_.end(), [this, i](const std::string& str)
             { return collision_boxes_[i].name.find(str) != std::string::npos; });
 
-        bool out_of_workspace = std::abs(collision_boxes_[i].pose.position.x - goal_pos_.x()) > 0.95 ||
+        bool out_of_workspace = std::abs(collision_boxes_[i].pose.position.x) > std::abs(goal_pos_.x()) ||
+            std::abs(collision_boxes_[i].pose.position.x) < std::abs(start->getX()) ||
             std::abs(collision_boxes_[i].pose.position.y - goal_pos_.y()) > 0.3 ||
             std::abs(collision_boxes_[i].pose.position.z - goal_pos_.z()) > 0.2;
         
