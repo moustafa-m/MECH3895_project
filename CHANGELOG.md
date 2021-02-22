@@ -2,6 +2,13 @@
 
 Noteable/major changes will be listed here
 
+## 22nd Feb 2021
+
+### Added
+
+- planner now checks if arm needs to re-initialise end effector position when replanning.
+- end effector starting x-position is used as a limit when checking for objects to clear.
+
 ## 16th Feb 2021
 
 ### Added
