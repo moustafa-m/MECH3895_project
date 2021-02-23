@@ -2,6 +2,12 @@
 
 Noteable/major changes will be listed here
 
+## 23rd Feb 2021
+
+### Added
+
+- Gazebo scene randomiser plugin srv returns number of objects in the scene, surface area, and the free area left on the surface.
+
 ## 22nd Feb 2021
 
 ### Added
