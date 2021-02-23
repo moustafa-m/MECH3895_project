@@ -23,7 +23,7 @@ namespace gazebo
         void Load(physics::WorldPtr _world, sdf::ElementPtr _sdf);
 
     private:
-        void queueThread();
+        double getModelArea(physics::ModelPtr model);
         bool checkCollision(ignition::math::v4::Pose3d& pose, physics::ModelPtr model, physics::ModelPtr parent);
         ignition::math::v4::Pose3d getModelPose(const ignition::math::v4::Pose3d& centre, physics::ShapePtr shape);
         bool randomiseSrvCallback(gazebo_scene_randomiser_plugin::randomiseRequest& req, gazebo_scene_randomiser_plugin::randomiseResponse& res);

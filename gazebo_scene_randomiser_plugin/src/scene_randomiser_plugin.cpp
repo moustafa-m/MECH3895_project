@@ -30,6 +30,33 @@ void SceneRandomiser::Load(physics::WorldPtr _world, sdf::ElementPtr _sdf)
     ROS_INFO("%sSceneRandomiser: Plugin loaded!", GREEN);
 }
 
+double SceneRandomiser::getModelArea(physics::ModelPtr model)
+{
+    double object_area = 0.0;
+    physics::CollisionPtr collision_ptr = model->GetChildCollision("collision");
+    bool supported_shape = false;
+    if (collision_ptr)
+    {
+        physics::ShapePtr shape(collision_ptr->GetShape());
+        if (shape->HasType(physics::Shape::BOX_SHAPE))
+        {
+            physics::BoxShape* box = static_cast<physics::BoxShape*>(shape.get());
+            object_area = box->Size().X() * box->Size().Y();
+            return object_area;
+        }
+        else if (shape->HasType(physics::Shape::CYLINDER_SHAPE))
+        {
+            physics::CylinderShape* cylinder = static_cast<physics::CylinderShape*>(shape.get());
+            object_area = M_PI*cylinder->GetRadius()*cylinder->GetRadius();
+            return object_area;
+        }
+    }
+
+    ignition::math::v4::Box box = model->CollisionBoundingBox();
+    object_area = box.Size().X() * box.Size().Y();
+    return object_area;
+}
+
 bool SceneRandomiser::checkCollision(ignition::math::v4::Pose3d& pose, physics::ModelPtr model, physics::ModelPtr parent)
 {
     std::vector<physics::ModelPtr> models = world_->Models();
@@ -136,7 +163,7 @@ bool SceneRandomiser::randomiseSrvCallback(gazebo_scene_randomiser_plugin::rando
     {
         res.message = "Unable to find parent model [" + parent_name + "]";
         res.success = false;
-        ROS_ERROR("[SceneRandomiser]: Unable to find parent model [%s]!", parent_name.c_str());
+        ROS_ERROR("SceneRandomiser: Unable to find parent model [%s]!", parent_name.c_str());
         return true;
     }
 
@@ -147,23 +174,34 @@ bool SceneRandomiser::randomiseSrvCallback(gazebo_scene_randomiser_plugin::rando
     {
         res.message = "Unable to find surface [" + surface_name + "]"; 
         res.success = false;
-        ROS_ERROR("[SceneRandomiser]: Failed to find surface [%s]!", surface_name.c_str());
+        ROS_ERROR("SceneRandomiser: Failed to find surface [%s]!", surface_name.c_str());
         return true;
     }
 
     physics::ShapePtr shape(surface->GetShape());
+    double surface_area = 0.0;
     bool supported_shape = shape->HasType(physics::Shape::BOX_SHAPE) || shape->HasType(physics::Shape::CYLINDER_SHAPE);
 
     if (!supported_shape)
     {
         res.message = "Surface shape not supported";
         res.success = false;
-        ROS_ERROR("[SceneRandomiser]: Unsupported surface shape!");   
+        ROS_ERROR("SceneRandomiser: Unsupported surface shape!");   
         return true;
     }
+    else if (shape->HasType(physics::Shape::BOX_SHAPE))
+    {
+        physics::BoxShape* box = static_cast<physics::BoxShape*>(shape.get());
+        surface_area = box->Size().X() * box->Size().Y();
+    }
+    else
+    {
+        physics::CylinderShape* cylinder = static_cast<physics::CylinderShape*>(shape.get());
+        surface_area = 2*M_PI*cylinder->GetRadius()*cylinder->GetRadius();
+    }
 
+    double object_areas = 0.0;
     std::vector<physics::ModelPtr> models = world_->Models();
-
     for (int i = 0; i < models.size(); i++)
     {
         physics::ModelPtr model = models[i];
@@ -173,6 +211,9 @@ bool SceneRandomiser::randomiseSrvCallback(gazebo_scene_randomiser_plugin::rando
             model->GetName() == "sun" ||
             model->GetName() == robot_name_)
         { continue; }
+
+        res.num_objects++;
+        object_areas += this->getModelArea(model);
 
         auto start = chrono::system_clock::now();
         while (chrono::duration_cast<chrono::seconds>(chrono::system_clock::now() - start).count() <= 5)
@@ -189,6 +230,8 @@ bool SceneRandomiser::randomiseSrvCallback(gazebo_scene_randomiser_plugin::rando
 
     res.message = "Scene randomised!";
     res.success = true;
+    res.surface_area = surface_area;
+    res.free_area = surface_area - object_areas;
 
     return true;
 }
