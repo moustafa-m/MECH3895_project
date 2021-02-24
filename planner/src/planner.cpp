@@ -1075,7 +1075,7 @@ bool Planner::startPlanSrvCallback(planner::start_plan::Request& req, planner::s
     res.execution_time = result_.execution_time;
 
     if (!res.path_found) { res.message = "Unable to find solution!"; }
-    else if (!res.partial_solution) { res.message = "Only found partial solution!"; }
+    else if (res.partial_solution) { res.message = "Only found partial solution!"; }
     else if (res.grasp_success) { res.message = "Solution found and grasp attempt was successful!"; }
     else { res.message = "Solution found but grasp attempt failed!"; }
 
