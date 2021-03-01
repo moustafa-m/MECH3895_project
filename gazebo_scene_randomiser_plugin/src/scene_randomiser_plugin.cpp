@@ -109,7 +109,7 @@ ignition::math::v4::Pose3d SceneRandomiser::getModelPose(const ignition::math::v
         // the surface dimensions are reduced to avoid cases with objects
         // being on the edge
         ignition::math::v4::Vector3d dim(box->Size());
-        dim.X() -= 0.2, dim.Y() -= 0.2;
+        dim.X() -= 0.1, dim.Y() -= 0.1;
 
         double upper_x = centre.Pos().X() + (dim.X()*0.5);
         double lower_x = centre.Pos().X() - (dim.X()*0.5);
