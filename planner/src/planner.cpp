@@ -52,6 +52,17 @@ bool Planner::plan()
         bool exit = false;
         while (ros::ok() && !exit)
         {
+            // check if global timeout exceeded
+            int total_time = plan_timer.elapsedMillis() + exectuion_timer.elapsedMillis();
+            if (total_time >= global_timeout_*1000)
+            {
+                result_.partial_solution = true;
+                result_.plan_time = plan_timer.elapsedMillis()/1000.0;
+                result_.execution_time = exectuion_timer.elapsedMillis()/1000.0;
+                ROS_ERROR("[PLANNER]: timeout exceeded!\n Time taken: %.2f", total_time/1000.0);
+                return false;
+            }
+
             // ensure timer is always started at this stage, the start() method will not
             // override previous data as it checks if the timer is already started or paused
             plan_timer.start();
@@ -340,13 +351,14 @@ void Planner::initROS()
 
     ros::param::param<std::vector<std::string>>("/gazebo/static_objects", static_objs_, {"INVALID"});
     ros::param::param<std::string>("~planner/name", planner_name_, "KPIECE1");
+    ros::param::param<int>("~planner/global_timeout", global_timeout_, 300);
     ros::param::param<int>("~planner/timeout", timeout_, 60);
     ros::param::param<int>("~planner/path_states", path_states_, 10);
     ros::param::param<bool>("~planner/save_path", save_path_, false);
 
     if (planner_name_ != "KPIECE1" && planner_name_ != "BFMT" && planner_name_ != "RRTStar")
     {
-        ROS_WARN("[PLANNER]: unrecognised planner name, setting to KPIECE1!");
+        ROS_WARN("[PLANNER]: unrecognised planner name [%s], setting to KPIECE1!", planner_name_);
         planner_name_ = "KPIECE1";
         ros::param::set("~planner/name", "KPIECE1");
     }
@@ -357,6 +369,7 @@ void Planner::initROS()
     for (int i = 0; i < static_objs_.size(); i++) { ss << static_objs_[i] << " "; }
     ROS_INFO_STREAM(BLUE << "Static Objs\t: " << ss.str());
     ROS_INFO_STREAM(BLUE << "name\t\t: " << planner_name_);
+    ROS_INFO_STREAM(BLUE << "global_timeout\t: " << global_timeout_);
     ROS_INFO_STREAM(BLUE << "timeout\t\t: " << timeout_);
     ROS_INFO_STREAM(BLUE << "path_states\t: " << path_states_);
     ROS_INFO_STREAM(BLUE << "save_path\t: " << std::boolalpha << save_path_);
@@ -1059,9 +1072,6 @@ bool Planner::startPlanSrvCallback(planner::start_plan::Request& req, planner::s
         res.message = "Unable to start, target is out of reach!";
         return true;
     }
-
-    std::vector<Eigen::Vector3d> start_positions; std::vector<Eigen::Quaterniond> start_orientations;
-    manipulator_.solveFK(start_positions, start_orientations);
 
     bool success = this->plan();
 

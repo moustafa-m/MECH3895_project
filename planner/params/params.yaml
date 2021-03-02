@@ -1,9 +1,10 @@
 planner:
-  name:           'KPIECE1'       # RRTStar or BFMT or KPIECE1
-  timeout:        60              # seconds
-  path_states:    8              # paths will be interpolated if they have less states than this
-  save_path:      false
+  name:             'KPIECE1'       # RRTStar or BFMT or KPIECE1
+  global_timeout:   300             # seconds, overall timeout for execution + planning time in clutter
+  timeout:          60              # seconds, timeout for motion planning only
+  path_states:      8               # paths will be interpolated if they have less states than this
+  save_path:        false
 
 kinematics_solver:
-  type:           1               # 0 - Speed, 1 - Distance, 2 - Manip1, 3 - Manip2
-  timeout:        0.005           # seconds
+  type:             1               # 0 - Speed, 1 - Distance, 2 - Manip1, 3 - Manip2
+  timeout:          0.005           # seconds

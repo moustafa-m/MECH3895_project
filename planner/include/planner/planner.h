@@ -93,6 +93,7 @@ private:
     ros::ServiceClient collisions_client_;
 
     bool save_path_;
+    int global_timeout_;
     int timeout_;
     int path_states_;
     std::string planner_name_;
