@@ -138,12 +138,15 @@ bool Planner::plan()
             plan_timer.pause();
 
             exectuion_timer.start();
+            result_.num_actions++;
             this->executeAction(action);
             exectuion_timer.pause();
         }
     }
     else
     {
+        result_.num_actions++;
+
         // object not blocked but path may collide with non-static objects because
         // initial planning does not check for that, so path needs to be checked
         state_checker_->setNonStaticCollisions(true);
@@ -1053,12 +1056,8 @@ bool Planner::startPlanSrvCallback(planner::start_plan::Request& req, planner::s
     target_geom_.dimension.x = target_geom_.dimension.y = target_geom_.dimension.z = -1;
     this->update();
 
-    Eigen::Vector3d goal_xyz = Eigen::Vector3d(target_geom_.pose.position.x,
-                                            target_geom_.pose.position.y,
-                                            target_geom_.pose.position.z);
-
     res.path_found = res.partial_solution = res.grasp_success = false;
-    res.plan_time = res.execution_time = 0.0;
+    res.plan_time = res.execution_time = res.num_actions = 0.0;
 
     if (target_geom_.dimension.x == -1)
     {
@@ -1066,7 +1065,7 @@ bool Planner::startPlanSrvCallback(planner::start_plan::Request& req, planner::s
         res.message = "Unable to start, target not found!";
         return true;
     }
-    else if (std::sqrt((goal_xyz.x()*goal_xyz.x()) + (goal_xyz.y()*goal_xyz.y()) + (goal_xyz.z()*goal_xyz.z())) > 0.95)
+    else if (std::sqrt((goal_pos_.x()*goal_pos_.x()) + (goal_pos_.y()*goal_pos_.y()) + (goal_pos_.z()*goal_pos_.z())) > 0.95)
     {
         ROS_ERROR("[PLANNER]: Target is out of reach!");
         res.message = "Unable to start, target is out of reach!";
@@ -1081,6 +1080,7 @@ bool Planner::startPlanSrvCallback(planner::start_plan::Request& req, planner::s
     res.path_found = result_.path_found;
     res.partial_solution = result_.partial_solution;
     res.grasp_success = result_.grasp_success;
+    res.num_actions = result_.num_actions;
     res.plan_time = result_.plan_time;
     res.execution_time = result_.execution_time;
 
