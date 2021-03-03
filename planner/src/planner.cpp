@@ -361,7 +361,7 @@ void Planner::initROS()
 
     if (planner_name_ != "KPIECE1" && planner_name_ != "BFMT" && planner_name_ != "RRTStar")
     {
-        ROS_WARN("[PLANNER]: unrecognised planner name [%s], setting to KPIECE1!", planner_name_);
+        ROS_WARN("[PLANNER]: unrecognised planner name [%s], setting to KPIECE1!", planner_name_.c_str());
         planner_name_ = "KPIECE1";
         ros::param::set("~planner/name", "KPIECE1");
     }
