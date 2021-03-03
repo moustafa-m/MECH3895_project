@@ -8,8 +8,9 @@
 - [x] Add execution time logging
 - [x] use ROS params for planner timeouts, name, IK solve type etc.
 - [x] Write up a complete README
+- [ ] Add search method for suitable locations to drop grasped objects
 - [ ] Add media files
-- [ ] Add number of actions logging
+- [x] Add number of actions logging
 - [ ] Add some form of grasp pose generation
 - [x] Add script to randomise Gazebo environment and execute the planner
   - [x] scene randomiser
