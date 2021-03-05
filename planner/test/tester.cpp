@@ -1,4 +1,5 @@
 #include <fstream>
+#include <iomanip>
 #include <planner/start_plan.h>
 #include <gazebo_scene_randomiser_plugin/randomise.h>
 #include <ros/ros.h>
@@ -115,9 +116,11 @@ private:
             
             // annoyingly, bool variables in ROS srv/msg are represented as uint8, so each one needs to
             // be cast to bool type to print them out correctly
-            file << bool(plan_req.response.path_found) << "," << bool(plan_req.response.partial_solution) << ","
-                << bool(plan_req.response.grasp_success) << "," << plan_req.response.plan_time << ","
-                << plan_req.response.execution_time << std::endl;
+            file << std::fixed << std::setprecision(3) << bool(plan_req.response.path_found) << ","
+                << bool(plan_req.response.partial_solution) << "," << bool(plan_req.response.grasp_success)
+                << "," << plan_req.response.num_actions << "," << plan_req.response.plan_time << ","
+                << plan_req.response.execution_time << "," << randomise_req.response.num_objects << ","
+                << randomise_req.response.free_area << "," << randomise_req.response.surface_area << "\n";
 
             file.flush();
             file.close();

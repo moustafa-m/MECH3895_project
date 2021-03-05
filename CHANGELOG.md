@@ -2,6 +2,19 @@
 
 Noteable/major changes will be listed here
 
+## 2nd March 2021
+
+### Added
+
+- Number of actions executed are now logged
+- Added a global timeout, the planner will timeout if execution time + planning exceeds this.
+
+## 23rd Feb 2021
+
+### Added
+
+- Gazebo scene randomiser plugin srv returns number of objects in the scene, surface area, and the free area left on the surface.
+
 ## 22nd Feb 2021
 
 ### Added

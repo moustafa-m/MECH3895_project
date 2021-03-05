@@ -47,13 +47,14 @@ public:
         bool path_found = false;
         bool partial_solution = false;
         bool grasp_success = false;
+        int num_actions = 0;
         double plan_time = 0.0;
         double execution_time = 0.0;
 
         void reset()
         {
             path_found = partial_solution = grasp_success = false;
-            plan_time = execution_time = 0.0;
+            num_actions = plan_time = execution_time = 0.0;
         }
     } PlannerResult;
 
@@ -93,6 +94,7 @@ private:
     ros::ServiceClient collisions_client_;
 
     bool save_path_;
+    int global_timeout_;
     int timeout_;
     int path_states_;
     std::string planner_name_;

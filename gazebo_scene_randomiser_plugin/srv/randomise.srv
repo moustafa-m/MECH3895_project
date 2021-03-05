@@ -2,3 +2,6 @@ string surface
 ---
 bool success
 string message
+int16 num_objects
+float64 surface_area
+float64 free_area

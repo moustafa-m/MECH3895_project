@@ -52,6 +52,17 @@ bool Planner::plan()
         bool exit = false;
         while (ros::ok() && !exit)
         {
+            // check if global timeout exceeded
+            int total_time = plan_timer.elapsedMillis() + exectuion_timer.elapsedMillis();
+            if (total_time >= global_timeout_*1000)
+            {
+                result_.partial_solution = true;
+                result_.plan_time = plan_timer.elapsedMillis()/1000.0;
+                result_.execution_time = exectuion_timer.elapsedMillis()/1000.0;
+                ROS_ERROR("[PLANNER]: timeout exceeded!\n Time taken: %.2f", total_time/1000.0);
+                return false;
+            }
+
             // ensure timer is always started at this stage, the start() method will not
             // override previous data as it checks if the timer is already started or paused
             plan_timer.start();
@@ -127,12 +138,15 @@ bool Planner::plan()
             plan_timer.pause();
 
             exectuion_timer.start();
+            result_.num_actions++;
             this->executeAction(action);
             exectuion_timer.pause();
         }
     }
     else
     {
+        result_.num_actions++;
+
         // object not blocked but path may collide with non-static objects because
         // initial planning does not check for that, so path needs to be checked
         state_checker_->setNonStaticCollisions(true);
@@ -340,13 +354,14 @@ void Planner::initROS()
 
     ros::param::param<std::vector<std::string>>("/gazebo/static_objects", static_objs_, {"INVALID"});
     ros::param::param<std::string>("~planner/name", planner_name_, "KPIECE1");
+    ros::param::param<int>("~planner/global_timeout", global_timeout_, 300);
     ros::param::param<int>("~planner/timeout", timeout_, 60);
     ros::param::param<int>("~planner/path_states", path_states_, 10);
     ros::param::param<bool>("~planner/save_path", save_path_, false);
 
     if (planner_name_ != "KPIECE1" && planner_name_ != "BFMT" && planner_name_ != "RRTStar")
     {
-        ROS_WARN("[PLANNER]: unrecognised planner name, setting to KPIECE1!");
+        ROS_WARN("[PLANNER]: unrecognised planner name [%s], setting to KPIECE1!", planner_name_.c_str());
         planner_name_ = "KPIECE1";
         ros::param::set("~planner/name", "KPIECE1");
     }
@@ -357,6 +372,7 @@ void Planner::initROS()
     for (int i = 0; i < static_objs_.size(); i++) { ss << static_objs_[i] << " "; }
     ROS_INFO_STREAM(BLUE << "Static Objs\t: " << ss.str());
     ROS_INFO_STREAM(BLUE << "name\t\t: " << planner_name_);
+    ROS_INFO_STREAM(BLUE << "global_timeout\t: " << global_timeout_);
     ROS_INFO_STREAM(BLUE << "timeout\t\t: " << timeout_);
     ROS_INFO_STREAM(BLUE << "path_states\t: " << path_states_);
     ROS_INFO_STREAM(BLUE << "save_path\t: " << std::boolalpha << save_path_);
@@ -1040,12 +1056,8 @@ bool Planner::startPlanSrvCallback(planner::start_plan::Request& req, planner::s
     target_geom_.dimension.x = target_geom_.dimension.y = target_geom_.dimension.z = -1;
     this->update();
 
-    Eigen::Vector3d goal_xyz = Eigen::Vector3d(target_geom_.pose.position.x,
-                                            target_geom_.pose.position.y,
-                                            target_geom_.pose.position.z);
-
     res.path_found = res.partial_solution = res.grasp_success = false;
-    res.plan_time = res.execution_time = 0.0;
+    res.plan_time = res.execution_time = res.num_actions = 0.0;
 
     if (target_geom_.dimension.x == -1)
     {
@@ -1053,15 +1065,12 @@ bool Planner::startPlanSrvCallback(planner::start_plan::Request& req, planner::s
         res.message = "Unable to start, target not found!";
         return true;
     }
-    else if (std::sqrt((goal_xyz.x()*goal_xyz.x()) + (goal_xyz.y()*goal_xyz.y()) + (goal_xyz.z()*goal_xyz.z())) > 0.95)
+    else if (std::sqrt((goal_pos_.x()*goal_pos_.x()) + (goal_pos_.y()*goal_pos_.y()) + (goal_pos_.z()*goal_pos_.z())) > 0.95)
     {
         ROS_ERROR("[PLANNER]: Target is out of reach!");
         res.message = "Unable to start, target is out of reach!";
         return true;
     }
-
-    std::vector<Eigen::Vector3d> start_positions; std::vector<Eigen::Quaterniond> start_orientations;
-    manipulator_.solveFK(start_positions, start_orientations);
 
     bool success = this->plan();
 
@@ -1071,11 +1080,12 @@ bool Planner::startPlanSrvCallback(planner::start_plan::Request& req, planner::s
     res.path_found = result_.path_found;
     res.partial_solution = result_.partial_solution;
     res.grasp_success = result_.grasp_success;
+    res.num_actions = result_.num_actions;
     res.plan_time = result_.plan_time;
     res.execution_time = result_.execution_time;
 
     if (!res.path_found) { res.message = "Unable to find solution!"; }
-    else if (!res.partial_solution) { res.message = "Only found partial solution!"; }
+    else if (res.partial_solution) { res.message = "Only found partial solution!"; }
     else if (res.grasp_success) { res.message = "Solution found and grasp attempt was successful!"; }
     else { res.message = "Solution found but grasp attempt failed!"; }
 
