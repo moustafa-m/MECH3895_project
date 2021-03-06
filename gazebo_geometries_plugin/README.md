@@ -43,6 +43,11 @@ $ rosservice call /gaezbo/get_geometry "model_name: 'name'"
 
 Replace ```name``` with the name of an object or collision link in the Gazebo world.
 
+**NOTE**: the names of the scene models used must follow this naming format:
+```
+<parent>_link_<child link>
+```
+
 the returned variables are as follows:
 
 - ```bool success``` - false if plugin is unable to find the requested model.
