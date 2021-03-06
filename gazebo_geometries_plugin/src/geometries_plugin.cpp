@@ -1,7 +1,5 @@
 #include "gazebo_geometries_plugin/geometries_plugin.h"
 
-static int prev_num_models = 0;
-
 using namespace gazebo;
 
 GeometriesPlugin::GeometriesPlugin()
@@ -22,6 +20,8 @@ void GeometriesPlugin::Load(physics::WorldPtr _world, sdf::ElementPtr _sdf)
         ROS_FATAL("Gazebo ROS node not initialised!");
         return;
     }
+
+    num_models_ = 0;
 
     nh_.reset(new ros::NodeHandle("geometries_plugin"));
     nh_->setCallbackQueue(&queue_);
@@ -58,18 +58,15 @@ void GeometriesPlugin::queueThread()
 
 void GeometriesPlugin::initKinovaDimensions()
 {
-    using namespace geometry_msgs;
-
     // fingers
-    Vector3 link_finger_1, link_finger_2, link_finger_3;
+    geometry_msgs::Vector3 link_finger_1, link_finger_2, link_finger_3;
     
     // links (names match the stl files in kinova_description package)
-    Vector3 base, shoulder, arm, arm_half_1, arm_half_2, forearm, wrist, wrist_spherical_1, wrist_spherical_2, hand_3finger;
+    geometry_msgs::Vector3 base, shoulder, arm, arm_half_1, arm_half_2, forearm, wrist, wrist_spherical_1, wrist_spherical_2, hand_3finger;
 
     // values are obtained by measuring mesh files in kinova_description package
     
-    // the finger y dimension is reduced to avoid edge cases due to usage of a box shape
-    // to enclose the finger
+    // the finger y dimension is reduced to avoid edge cases due to usage of a box shape to enclose the finger
     link_finger_1.x = 0.132, link_finger_1.y = 0.01, link_finger_1.z = 0.025;
     link_finger_2 = link_finger_3 = link_finger_1;
     
@@ -79,22 +76,22 @@ void GeometriesPlugin::initKinovaDimensions()
     arm_half_1.x = 0.083, arm_half_1.y = 0.245, arm_half_1.z = 0.0855;
     arm_half_2.x = 0.083, arm_half_2.y = 0.0855, arm_half_2.z = 0.245;
     forearm.x = 0.082, forearm.y = 0.248, forearm.z = 0.063;
-    wrist.x = 0.065, wrist.y = 0.085, wrist.z = 0.09;                                       // curved wrist
+    wrist.x = 0.065, wrist.y = 0.085, wrist.z = 0.09;   // curved wrist
     wrist_spherical_1.x = 0.063, wrist_spherical_1.y = 0.063, wrist_spherical_1.z = 0.15;
     wrist_spherical_2.x = 0.063, wrist_spherical_2.y = 0.15, wrist_spherical_2.z = 0.09;
     hand_3finger.x = 0.085, hand_3finger.y = 0.10, hand_3finger.z = 0.12;
 
-    if (robot_name_.compare("j2s7s300") == 0)
+    if (robot_name_ == "j2s7s300")
     {
         kinova_dimensions_ = {base, shoulder, arm_half_1, arm_half_2, forearm, wrist_spherical_1, wrist_spherical_2, hand_3finger,
             link_finger_1, link_finger_2, link_finger_3};
     }
-    else if (robot_name_.compare("j2s6s300") == 0)
+    else if (robot_name_ == "j2s6s300")
     {
         kinova_dimensions_ = {base, shoulder, arm, forearm, wrist_spherical_1, wrist_spherical_2, hand_3finger, link_finger_1,
             link_finger_2, link_finger_3};
     }
-    else if (robot_name_.compare("j2n6s300") == 0)
+    else if (robot_name_ == "j2n6s300")
     {
         kinova_dimensions_ = {base, shoulder, arm, forearm, wrist, wrist, hand_3finger, link_finger_1, link_finger_2, link_finger_3};
     }
@@ -109,7 +106,9 @@ void GeometriesPlugin::publishMarkers()
     std::vector<gazebo::physics::ModelPtr> models = world_->Models();
     if (models.empty()) return;
 
-    if (prev_num_models != models.size())
+    // checks if the models in the world have been added/removed
+    // if changes are made, delete all markers and update scene
+    if (num_models_ != models.size())
     {
         marker.action = visualization_msgs::Marker::DELETEALL;
         marker.header.frame_id = "world";
@@ -117,7 +116,7 @@ void GeometriesPlugin::publishMarkers()
         marker.header.seq += 1;
         marker_pub_.publish(marker);
 
-        prev_num_models = models.size();
+        num_models_ = models.size();
     }
 
     for (size_t i = 0; i < models.size(); i++)

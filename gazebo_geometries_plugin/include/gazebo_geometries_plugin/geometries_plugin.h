@@ -44,6 +44,8 @@ namespace gazebo
 
         std::string geometries_ns_;
 
+        int num_models_;
+
         std::vector<std::string> static_objs_;
         std::string robot_name_;
         std::vector<geometry_msgs::Vector3> kinova_dimensions_;
