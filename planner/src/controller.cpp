@@ -29,7 +29,7 @@ void Controller::openGripper()
 {
     if (gripper_open_)
     {
-        ROS_INFO("%s[CONTROLLER]: Gripper is already open!", GREEN);
+        // ROS_INFO("%s[CONTROLLER]: Gripper is already open!", GREEN);
         return;
     }
 
@@ -56,7 +56,7 @@ void Controller::closeGripper()
 {
     if (!gripper_open_)
     {
-        ROS_INFO("%s[CONTROLLER]: Gripper is already closed!", GREEN);
+        // ROS_INFO("%s[CONTROLLER]: Gripper is already closed!", GREEN);
         return;
     }
 
@@ -86,11 +86,11 @@ void Controller::goToHome()
 
     if (util::approxEqual(current_pos, manipulator_->getHomePose(), 1e-2))
     {
-        ROS_INFO("%s[CONTROLLER]: Kinova is already at home pose!", GREEN);
+        // ROS_INFO("%s[CONTROLLER]: Kinova is already at home pose!", GREEN);
         return;
     }
 
-    ROS_INFO("%s[CONTROLLER]: Moving to home position...", CYAN);
+    // ROS_INFO("%s[CONTROLLER]: Moving to home position...", CYAN);
     trajectory_msgs::JointTrajectory joints_msg;
     joints_msg.header.seq += 1;
 
@@ -106,7 +106,7 @@ void Controller::goToHome()
     joints_msg.header.stamp = ros::Time::now();
 
     this->sendAction(joints_msg);
-    ROS_INFO("%s[CONTROLLER]: Done, Kinova is at home position!", GREEN);
+    // ROS_INFO("%s[CONTROLLER]: Done, Kinova is at home position!", GREEN);
 }
 
 void Controller::goToInit()
@@ -116,7 +116,7 @@ void Controller::goToInit()
     
     if (util::approxEqual(current_pos, manipulator_->getInitPose(), 1e-2))
     {
-        ROS_INFO("%s[CONTROLLER]: Kinova is already at init pose!", GREEN);
+        // ROS_INFO("%s[CONTROLLER]: Kinova is already at init pose!", GREEN);
         return;
     }
 
@@ -137,7 +137,7 @@ void Controller::goToInit()
 
     this->sendAction(joints_msg);
 
-    ROS_INFO("%s[CONTROLLER]: Done, Kinova is at init position!", GREEN);
+    // ROS_INFO("%s[CONTROLLER]: Done, Kinova is at init position!", GREEN);
 }
 
 void Controller::init()
