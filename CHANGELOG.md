@@ -2,6 +2,16 @@
 
 Noteable/major changes will be listed here
 
+## 7th March 2021
+
+### Added
+
+- if init state is not valid, an offset is applied to the y-value as this mostly happens when the target object is near a wall
+
+### Modified
+
+- isObjectBlocked() now takes in a vector of collision geometries and sorts them instead of doing this inside planInClutter()
+
 ## 5th March 2021
 
 ### Fixed
