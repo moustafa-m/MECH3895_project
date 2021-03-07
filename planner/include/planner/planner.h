@@ -76,11 +76,12 @@ private:
     bool generateTrajectory(trajectory_msgs::JointTrajectory& traj);
     void publishGoalMarker();
     void publishMarkers();
-    void modelStatesCallback(const gazebo_msgs::ModelStatesConstPtr msg);
+    void modelStatesCallback(gazebo_msgs::ModelStatesConstPtr msg);
     void update();
-    bool isObjectBlocked(std::vector<int>& idxs);
-    Planner::ActionType planInClutter(std::vector<int> idxs, std::vector<ob::ScopedState<ob::SE3StateSpace>>& states);
-    bool getPushAction(std::vector<ob::ScopedState<ob::SE3StateSpace>>& states, std::vector<util::CollisionGeometry>& objs,
+    bool isObjectBlocked(std::vector<util::CollisionGeometry>& objs);
+    Planner::ActionType planInClutter(const std::vector<util::CollisionGeometry>& objs,
+        std::vector<ob::ScopedState<ob::SE3StateSpace>>& states);
+    bool getPushAction(std::vector<ob::ScopedState<ob::SE3StateSpace>>& states, const std::vector<util::CollisionGeometry>& objs,
         const util::CollisionGeometry& geom);
     bool getGraspAction(std::vector<ob::ScopedState<ob::SE3StateSpace>>& states, const util::CollisionGeometry& geom);
     bool getPushGraspAction(const util::CollisionGeometry& geom, ob::ScopedState<ob::SE3StateSpace>& state);

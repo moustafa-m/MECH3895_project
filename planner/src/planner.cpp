@@ -39,7 +39,7 @@ bool Planner::plan()
     }
 
     // now check if the object is blocked by non-static objects, if it is not, then the inital obtained path is used
-    std::vector<int> blocking_objs;
+    std::vector<util::CollisionGeometry> blocking_objs;
     if (this->isObjectBlocked(blocking_objs))
     {
         // disable checks for collision with target and non-static objects if clutter clearing is needed
@@ -638,13 +638,15 @@ void Planner::update()
     }
 }
 
-bool Planner::isObjectBlocked(std::vector<int>& idxs)
+bool Planner::isObjectBlocked(std::vector<util::CollisionGeometry>& objs)
 {
-    idxs.clear();
+    objs.clear();
     bool clear = true;
 
     ob::ScopedState<ob::SE3StateSpace> start(space_);
     start = pdef_->getStartState(0);
+
+    std::vector<int> idxs;
 
     for (size_t i = 0; i < collision_boxes_.size(); i++)
     {
@@ -675,8 +677,28 @@ bool Planner::isObjectBlocked(std::vector<int>& idxs)
 
     if (!clear)
     {
-        if (idxs.empty()) { std::cout << CYAN << "[PLANNER]: Object is blocked" << NC << std::endl; }
-        else { std::cout << CYAN << "[PLANNER]: Path blocked, found " << idxs.size() << " objects to clear" << NC << std::endl; }
+        if (idxs.empty())
+        {
+            std::cout << CYAN << "[PLANNER]: Object is blocked" << NC << std::endl;
+        }
+        else
+        {
+            std::cout << CYAN << "[PLANNER]: Path blocked, found " << idxs.size() << " objects to clear" << NC << std::endl;
+            
+            std::vector<util::CollisionGeometry> objects;
+            std::cout << CYAN << "[PLANNER]: { ";
+            for (int i = 0; i < idxs.size(); i++)
+            {
+                int index = idxs[i];
+                std::cout << collision_boxes_[index].name << " ";
+                objects.push_back(collision_boxes_[index]);
+            }
+            std::cout << "}" << std::endl;
+
+            // sort by increasing x values
+            std::sort(objects.begin(), objects.end(), [](const util::CollisionGeometry& lhs, const util::CollisionGeometry& rhs)
+                { return std::abs(lhs.pose.position.x) < std::abs(rhs.pose.position.x); });
+        }
     }
 
     return !clear;
@@ -684,40 +706,36 @@ bool Planner::isObjectBlocked(std::vector<int>& idxs)
 
 //TODO: might be worth to put the path planning and action planning bits together in here.
 // This will require splitting this up however.
-Planner::ActionType Planner::planInClutter(std::vector<int> idxs, std::vector<ob::ScopedState<ob::SE3StateSpace>>& states)
+Planner::ActionType Planner::planInClutter(const std::vector<util::CollisionGeometry>& objs,
+    std::vector<ob::ScopedState<ob::SE3StateSpace>>& states)
 {
     state_checker_->setIKCheck(false);
     ob::ScopedState<ob::SE3StateSpace> state(space_);
     state = pdef_->getStartState(0);
 
     bool should_init = std::abs(state->getY() - goal_pos_.y()) > 0.03;
-
-    if (!idxs.empty())
+    if (should_init)
     {
-        std::vector<util::CollisionGeometry> objects;
-        std::cout << CYAN << "[PLANNER]: { ";
-        for (int i = 0; i < idxs.size(); i++)
-        {
-            int index = idxs[i];
-            std::cout << collision_boxes_[index].name << " ";
-            objects.push_back(collision_boxes_[index]);
-        }
-        std::cout << "}" << std::endl;
+        double init_x = (objs.empty()) ? goal_pos_.x()*0.60 : objs[0].pose.position.x*0.60;
+        double init_y = goal_pos_.y();
+        double init_z = goal_pos_.z();
+        state->setXYZ(init_x, init_y, init_z);
 
-        // sort by increasing x values
-        std::sort(objects.begin(), objects.end(), [](const util::CollisionGeometry& lhs, const util::CollisionGeometry& rhs)
-            { return std::abs(lhs.pose.position.x) < std::abs(rhs.pose.position.x); });
-
-        if (should_init)
+        if (state_checker_->isValid(state.get()))
         {
-            // move end effector to match object's Y and Z positions
-            state->setX(objects[0].pose.position.x * 0.60);
-            state->setY(goal_pos_.y());
-            state->setZ(goal_pos_.z());
             states.push_back(state);
         }
+        else if (std::abs(state->getY() - init_y*0.8) > 0.03)
+        {
+            // if not valid, most likely that object is close to a wall, so, offset end-effector a bit
+            state->setY(init_y*0.8);
+            states.push_back(state);
+        }
+    }
 
-        bool success = this->getPushAction(states, objects, objects.front());
+    if (!objs.empty())
+    {
+        bool success = this->getPushAction(states, objs, objs.front());
 
         if (success)
         {
@@ -725,29 +743,20 @@ Planner::ActionType Planner::planInClutter(std::vector<int> idxs, std::vector<ob
         }
         else
         {
-            success = this->getGraspAction(states, objects.front());
+            success = this->getGraspAction(states, objs.front());
             return (success) ? ActionType::GRASP : ActionType::NONE;
         }
     }
     else
     {
-        if (should_init)
-        {
-            // if the indices array is empty, objects are surronding the object but may be pushed by a grasp attempt
-            state->setX(goal_pos_.x()*0.60);
-            state->setY(goal_pos_.y());
-            state->setZ(goal_pos_.z());
-            states.push_back(state);
-        }
-        
-        if (!this->getPushGraspAction(target_geom_, state)) { return Planner::ActionType::NONE; }
+        if (!this->getPushGraspAction(target_geom_, state)) { return ActionType::NONE; }
         states.push_back(state);
 
-        return Planner::ActionType::PUSH_GRASP;
+        return ActionType::PUSH_GRASP;
     }
 }
 
-bool Planner::getPushAction(std::vector<ob::ScopedState<ob::SE3StateSpace>>& states, std::vector<util::CollisionGeometry>& objs,
+bool Planner::getPushAction(std::vector<ob::ScopedState<ob::SE3StateSpace>>& states, const std::vector<util::CollisionGeometry>& objs,
     const util::CollisionGeometry& geom)
 {
     if (std::abs(goal_pos_.x()) - std::abs(geom.pose.position.x) <= 0.07)
