@@ -841,18 +841,6 @@ bool Planner::getPushAction(std::vector<ob::ScopedState<ob::SE3StateSpace>>& sta
 
     if (!state_checker_->isValid(init_state.get()))
     {
-        direction = -1;
-        desired_y = geom.pose.position.y - direction*init_dist;
-        init_state->setY(desired_y);
-
-        // if 0 -> push action not possible
-        direction = (state_checker_->isValid(init_state.get())) ? -1 : 0;
-    }
-
-    state_checker_->setIKCheck(false);
-
-    if (direction == 0)
-    {
         std::cout << RED << "[PLANNER]: Failed to get push action" << std::endl;
         return false;
     }
