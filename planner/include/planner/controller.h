@@ -17,7 +17,6 @@ public:
     Controller(ros::NodeHandle* nh, Manipulator* manip);
     ~Controller();
 
-    void run();
     void sendAction(trajectory_msgs::JointTrajectory joint_traj);
     void openGripper();
     void closeGripper();

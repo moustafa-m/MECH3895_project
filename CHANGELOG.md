@@ -2,6 +2,12 @@
 
 Noteable/major changes will be listed here
 
+## 5th March 2021
+
+### Fixed
+
+- Changed num_actions to int16 type, shouldn't have been int8.
+
 ## 2nd March 2021
 
 ### Added

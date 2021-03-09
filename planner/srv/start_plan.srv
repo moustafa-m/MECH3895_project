@@ -4,6 +4,6 @@ string message
 bool path_found
 bool partial_solution
 bool grasp_success
-int8 num_actions
+int16 num_actions
 float64 plan_time
 float64 execution_time

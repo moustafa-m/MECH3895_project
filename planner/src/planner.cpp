@@ -661,7 +661,7 @@ bool Planner::isObjectBlocked(std::vector<int>& idxs)
             collision_boxes_[i].name.find(target_geom_.name) != std::string::npos)
         { continue; }
 
-        if (std::abs(collision_boxes_[i].pose.position.y - goal_pos_.y()) < 0.10)
+        if (std::abs(collision_boxes_[i].pose.position.y - goal_pos_.y()) < 0.08)
         {
             double min_clearance = target_geom_.dimension.x/2;
             // If the object x relative to the target x is more than or equal the clearance
