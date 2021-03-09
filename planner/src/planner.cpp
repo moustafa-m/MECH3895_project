@@ -475,6 +475,29 @@ void Planner::publishGoalMarker()
     marker_pub_.publish(marker);
 }
 
+    marker.id = 1;
+    marker.ns = "goal";
+    marker.header.frame_id = manipulator_.getName() + "_link_base";
+    marker.header.stamp = ros::Time::now();
+    marker.color.a = 1.0; marker.color.b = 1.0; marker.color.r = 0.3; marker.color.g = 0;
+    marker.action = visualization_msgs::Marker::ADD;
+    marker.type = visualization_msgs::Marker::ARROW;
+    
+    marker.scale.x = 0.1, marker.scale.y = 0.01, marker.scale.z = 0.05;
+    marker.pose.position.x = goal_pos_.x();
+    marker.pose.position.y = goal_pos_.y();
+    marker.pose.position.z = goal_pos_.z();
+
+    Eigen::Quaterniond quat = goal_orient_ * Eigen::AngleAxisd(-M_PI/2, Eigen::Vector3d::UnitY());
+    marker.pose.orientation.w = quat.w();
+    marker.pose.orientation.x = quat.x();
+    marker.pose.orientation.y = quat.y();
+    marker.pose.orientation.z = quat.z();
+
+    marker.points.resize(0);
+    marker_pub_.publish(marker);
+}
+
 void Planner::publishMarkers()
 {
     int marker_id = 0;
