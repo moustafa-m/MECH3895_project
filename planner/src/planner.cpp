@@ -3,6 +3,8 @@
 Planner::Planner(ros::NodeHandle* nh)
     : nh_(*nh), manipulator_(nh), controller_(nh, &manipulator_)
 {
+    goal_pos_.setIdentity();
+    goal_orient_.setIdentity();
     this->initROS();
     this->init();
 }
@@ -19,6 +21,12 @@ bool Planner::plan()
     state_checker_->setIKCheck(true);
 
     result_.reset();
+
+    if (!state_checker_->isValid(pdef_->getGoal()->as<ob::GoalState>()->getState()))
+    {
+        std::cout << RED << "[PLANNER]: Goal state is invalid!" << NC << std::endl;
+        return false;
+    }
 
     solutions_.clear();
     planner_->clear();
@@ -232,13 +240,23 @@ void Planner::setGoal(const Eigen::Vector3d& goal, const Eigen::Quaterniond& ori
     goal_state->rotation().y = orientation.y();
     goal_state->rotation().z = orientation.z();
     goal_state->rotation().w = orientation.w();
+
+    if (!this->verifyAndCorrectGraspPose(goal_state))
+    {
+        std::cout << RED << "[PLANNER]: No valid grasp poses!\n";
+    }
+
     pdef_->clearGoal();
     pdef_->clearSolutionPaths();
     pdef_->setGoalState(goal_state);
 
-    goal_pos_ = goal;
-    goal_orient_ = orientation;
     this->publishGoalMarker();
+
+    goal_pos_ = Eigen::Vector3d(goal_state->getX(), goal_state->getY(), goal_state->getZ());
+    goal_orient_ = Eigen::Quaterniond(goal_state->rotation().w,
+                                    goal_state->rotation().x,
+                                    goal_state->rotation().y,
+                                    goal_state->rotation().z);
 
     std::cout << BLUE << "[PLANNER]: Goal pose set to:\n {"
         << goal_state->getX() << ", " << goal_state->getY() << ", "
@@ -473,7 +491,6 @@ void Planner::publishGoalMarker()
     marker.action = visualization_msgs::Marker::ADD;
     marker.type = visualization_msgs::Marker::CUBE;
     marker_pub_.publish(marker);
-}
 
     marker.id = 1;
     marker.ns = "goal";
@@ -582,14 +599,9 @@ void Planner::update()
 {
     this->clearMarkers();
 
-    std::vector<Eigen::Vector3d> manip_positions;
-    std::vector<Eigen::Quaterniond> manip_quats;
-    manipulator_.solveFK(manip_positions, manip_quats);
-    this->setStart(manip_positions.back(), manip_quats.back());
-
     collision_boxes_.clear();
 
-    for (size_t i = 0; i < models_->name.size(); i++)
+    for (int i = 0; i < models_->name.size(); i++)
     {
         if (models_->name[i].find(manipulator_.getName()) != std::string::npos) continue;
 
@@ -614,24 +626,14 @@ void Planner::update()
                 
                 collision_boxes_.push_back(temp);
 
-                if (temp.name == target_geom_.name)
-                {
-                    this->setTargetGeometry(temp);
-                    goal_pos_ = Eigen::Vector3d(temp.pose.position.x,
-                                                temp.pose.position.y,
-                                                temp.pose.position.z);
-
-                    goal_orient_ = manip_quats.back();
-                    
-                    this->setGoal(goal_pos_, goal_orient_);
-                }
+                if (temp.name == target_geom_.name) { this->setTargetGeometry(temp); }
             }
         }
     }
 
     int num_joints = manipulator_.getNumJoints();
     // collision geometries for Kinova links and fingers
-    for (int i = 0 ; i < num_joints+3; i++)
+    for (int i = 0; i < num_joints+3; i++)
     {
         std::string link;
         if (i < manipulator_.getNumJoints()) { link = "_link_" + std::to_string(i+1); }
@@ -659,6 +661,69 @@ void Planner::update()
             }
         }
     }
+
+    std::vector<Eigen::Vector3d> manip_positions;
+    std::vector<Eigen::Quaterniond> manip_quats;
+    manipulator_.solveFK(manip_positions, manip_quats);
+    this->setStart(manip_positions.back(), manip_quats.back());
+
+    goal_pos_ = Eigen::Vector3d(target_geom_.pose.position.x,
+                                target_geom_.pose.position.y,
+                                target_geom_.pose.position.z);
+    if (goal_orient_.coeffs() == Eigen::Quaterniond::Identity().coeffs()) goal_orient_ = manip_quats.back();
+
+    this->setGoal(goal_pos_, goal_orient_);
+}
+
+bool Planner::verifyAndCorrectGraspPose(ob::ScopedState<ob::SE3StateSpace>& state)
+{
+    state_checker_->setIKCheck(true);
+    state_checker_->setNonStaticCollisions(false);
+    state_checker_->setTargetCollision(true);
+
+    if (state_checker_->isValid(state.get())) return true;
+
+    ROS_WARN("[PLANNER]: Grasp pose invalid, attempting to obtain a new one!");
+
+    ob::ScopedState<ob::SE3StateSpace> goal_state(space_);
+    goal_state = state;
+
+    Eigen::Quaterniond quat = goal_orient_;
+    int num_iterations = 500;
+    double increment = 2*M_PI/num_iterations;
+    for (int i = 1; i <= num_iterations; i++)
+    {
+        for (int j = 0; j <= 1; j++)
+        {
+            int dir = (j == 0) ? -1 : 1;
+            double rot_val = M_PI_2*double(dir)*i/num_iterations;
+
+            Eigen::Quaterniond new_quat = Eigen::AngleAxisd(rot_val, Eigen::Vector3d::UnitZ()) * quat;
+
+            // if (i % 100 == 0)
+            // {
+            //     goal_orient_ = new_quat;
+            //     this->publishGoalMarker();
+            //     sleep(2);
+            // }
+
+            goal_state->rotation().x = new_quat.x();
+            goal_state->rotation().y = new_quat.y();
+            goal_state->rotation().z = new_quat.z();
+            goal_state->rotation().w = new_quat.w();
+
+            if (state_checker_->isValid(goal_state.get()))
+            {
+                state = goal_state;
+                goal_orient_ = new_quat;
+                std::cout << GREEN << "[PLANNER]: found valid grasp pose!\n";
+                return true;
+            }
+        }
+    }
+
+    std::cout << RED << "[PLANNER]: Failed to find valid grasp pose!\n";
+    return false;
 }
 
 bool Planner::isObjectBlocked(std::vector<util::CollisionGeometry>& objs)
@@ -928,7 +993,7 @@ bool Planner::getGraspAction(std::vector<ob::ScopedState<ob::SE3StateSpace>>& st
     grasp_state = relocate_state = start = pdef_->getStartState(0);
     grasp_state->setXYZ(geom.pose.position.x, geom.pose.position.y, goal_pos_.z());
 
-    if (!state_checker_->isValid(grasp_state.get()))
+    if (!this->verifyAndCorrectGraspPose(grasp_state))
     {
         std::cout << RED << "[PLANNER]: " << geom.name << " cannot be grasped!" << std::endl;
         return false;
@@ -971,7 +1036,7 @@ bool Planner::getPushGraspAction(const util::CollisionGeometry& geom, ob::Scoped
                         geom.pose.position.y,
                         geom.pose.position.z);
 
-    state = pdef_->getStartState(0);
+    state = pdef_->getGoal()->as<ob::GoalState>()->getState();
 
     // check if any object is close behind the object, which would interfere with the final object push
     bool obj_behind = false;

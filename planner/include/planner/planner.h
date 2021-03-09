@@ -15,6 +15,7 @@
 #include <ompl/base/objectives/StateCostIntegralObjective.h>
 #include <ompl/base/objectives/MaximizeMinClearanceObjective.h>
 #include <ompl/base/spaces/SE3StateSpace.h>
+#include <ompl/base/goals/GoalState.h>
 
 #include <ompl/geometric/planners/rrt/RRTstar.h>
 #include <ompl/geometric/planners/kpiece/KPIECE1.h>
@@ -78,6 +79,7 @@ private:
     void publishMarkers();
     void modelStatesCallback(gazebo_msgs::ModelStatesConstPtr msg);
     void update();
+    bool verifyAndCorrectGraspPose(ob::ScopedState<ob::SE3StateSpace>& state);
     bool isObjectBlocked(std::vector<util::CollisionGeometry>& objs);
     Planner::ActionType planInClutter(const std::vector<util::CollisionGeometry>& objs,
         std::vector<ob::ScopedState<ob::SE3StateSpace>>& states);
