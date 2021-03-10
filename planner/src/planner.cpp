@@ -368,6 +368,7 @@ void Planner::initROS()
     marker_pub_ = nh_.advertise<visualization_msgs::Marker>("/visualization_marker", 10);
     models_sub_ = nh_.subscribe("/gazebo/model_states", 10, &Planner::modelStatesCallback, this);
     start_plan_srv_ = nh_.advertiseService("/start_plan", &Planner::startPlanSrvCallback, this);
+    reset_arm_srv_ = nh_.advertiseService("/reset_arm", &Planner::resetArmSrvCallback, this);
     collisions_client_ = nh_.serviceClient<gazebo_geometries_plugin::geometry>("/gazebo/get_geometry", 10);
 
     ros::param::param<std::vector<std::string>>("/gazebo/static_objects", static_objs_, {"INVALID"});
@@ -480,17 +481,20 @@ bool Planner::generateTrajectory(trajectory_msgs::JointTrajectory& traj)
 void Planner::publishGoalMarker()
 {
     visualization_msgs::Marker marker;
-    marker.id = 0;
-    marker.scale = target_geom_.dimension;
-    marker.pose = target_geom_.pose;
-    marker.color.b = marker.color.a = 1.0;
-    marker.color.r = marker.color.g = 0.0;
-    marker.ns = "goal";
-    marker.header.frame_id = manipulator_.getName() + "_link_base";
-    marker.header.stamp = ros::Time::now();
-    marker.action = visualization_msgs::Marker::ADD;
-    marker.type = visualization_msgs::Marker::CUBE;
-    marker_pub_.publish(marker);
+    if (!target_geom_.name.empty())
+    {
+        marker.id = 0;
+        marker.scale = target_geom_.dimension;
+        marker.pose = target_geom_.pose;
+        marker.color.b = marker.color.a = 1.0;
+        marker.color.r = marker.color.g = 0.0;
+        marker.ns = "goal";
+        marker.header.frame_id = manipulator_.getName() + "_link_base";
+        marker.header.stamp = ros::Time::now();
+        marker.action = visualization_msgs::Marker::ADD;
+        marker.type = visualization_msgs::Marker::CUBE;
+        marker_pub_.publish(marker);
+    }
 
     marker.id = 1;
     marker.ns = "goal";
@@ -1127,14 +1131,76 @@ void Planner::executeAction(Planner::ActionType action)
     }
 }
 
+void Planner::resetArm()
+{
+    std::vector<Eigen::Vector3d> start_positions;
+    std::vector<Eigen::Vector3d> goal_positions;
+    std::vector<Eigen::Quaterniond> goal_orientations;
+    manipulator_.solveFK(start_positions, goal_orientations);
+    manipulator_.solveFK(goal_positions, goal_orientations, manipulator_.getInitPose());
+
+    Eigen::Vector3d diff = start_positions.back() - goal_positions.back();
+    if (std::abs(diff.x()) < 5e-2 &&
+        std::abs(diff.y()) < 5e-2 &&
+        std::abs(diff.z()) < 5e-2)
+    { return; }
+    
+    // fake target geometry
+    util::CollisionGeometry geom;
+    geom.pose.position.x = goal_positions.back().x();
+    geom.pose.position.y = goal_positions.back().y();
+    geom.pose.position.z = goal_positions.back().z();
+
+    goal_pos_ = goal_positions.back();
+    goal_orient_ = goal_orientations.back();
+
+    this->setTargetGeometry(geom);
+    this->update();
+    controller_.openGripper();
+
+    state_checker_->setNonStaticCollisions(false);
+
+    if (!state_checker_->isValid(pdef_->getStartState(0)))
+    {
+        controller_.goToInit();
+        return;
+    }
+
+    solutions_.clear();
+    pdef_->clearSolutionPaths();
+    planner_->clear();
+    planner_->setProblemDefinition(pdef_);
+    if (!planner_->isSetup()) planner_->setup();
+
+    state_checker_->setNonStaticCollisions(false);
+    ob::PlannerStatus solved = planner_->solve(timeout_);
+
+    if (solved == ob::PlannerStatus::EXACT_SOLUTION)
+    {
+        og::PathSimplifierPtr simplifier = og::PathSimplifierPtr(new og::PathSimplifier(si_));
+        simplifier->simplifyMax(*pdef_->getSolutionPath()->as<og::PathGeometric>());
+        pdef_->getSolutionPath()->as<og::PathGeometric>()->interpolate(10);
+
+        solutions_.push_back(*pdef_->getSolutionPath()->as<og::PathGeometric>());
+
+        trajectory_msgs::JointTrajectory traj;
+        if (this->generateTrajectory(traj))
+        {
+            this->publishMarkers();
+            controller_.sendAction(traj);
+        }
+    }
+
+    this->clearMarkers();
+}
+
 bool Planner::startPlanSrvCallback(planner::start_plan::Request& req, planner::start_plan::Response& res)
 {
     ROS_INFO("%s[PLANNER]: Received plan request for [%s]", CYAN, req.target.c_str());
 
     if (req.target.find("_collision") == std::string::npos) req.target += "_collision";
 
-    controller_.goToInit();
-    controller_.openGripper();
+    this->resetArm();
     
     target_geom_.name = req.target;
     target_geom_.dimension.x = target_geom_.dimension.y = target_geom_.dimension.z = -1;
@@ -1173,5 +1239,12 @@ bool Planner::startPlanSrvCallback(planner::start_plan::Request& req, planner::s
     else if (res.grasp_success) { res.message = "Solution found and grasp attempt was successful!"; }
     else { res.message = "Solution found but grasp attempt failed!"; }
 
+    return true;
+}
+
+bool Planner::resetArmSrvCallback(std_srvs::Empty::Request& req, std_srvs::Empty::Response& res)
+{
+    ROS_INFO("%s[PLANNER]: Recieved srv request to reset arm", CYAN);
+    this->resetArm();
     return true;
 }

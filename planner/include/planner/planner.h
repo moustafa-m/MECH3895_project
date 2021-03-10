@@ -88,12 +88,15 @@ private:
     bool getGraspAction(std::vector<ob::ScopedState<ob::SE3StateSpace>>& states, const util::CollisionGeometry& geom);
     bool getPushGraspAction(const util::CollisionGeometry& geom, ob::ScopedState<ob::SE3StateSpace>& state);
     void executeAction(Planner::ActionType action);
+    void resetArm();
     bool startPlanSrvCallback(planner::start_plan::Request& req, planner::start_plan::Response& res);
+    bool resetArmSrvCallback(std_srvs::Empty::Request& req, std_srvs::Empty::Response& res);
 
     ros::NodeHandle nh_;
     ros::Publisher marker_pub_;
     ros::Subscriber models_sub_;
     ros::ServiceServer start_plan_srv_;
+    ros::ServiceServer reset_arm_srv_;
     ros::ServiceClient collisions_client_;
 
     bool save_path_;
