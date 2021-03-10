@@ -773,18 +773,17 @@ bool Planner::isObjectBlocked(std::vector<util::CollisionGeometry>& objs)
         {
             std::cout << CYAN << "[PLANNER]: Path blocked, found " << idxs.size() << " objects to clear" << NC << std::endl;
             
-            std::vector<util::CollisionGeometry> objects;
             std::cout << CYAN << "[PLANNER]: { ";
             for (int i = 0; i < idxs.size(); i++)
             {
                 int index = idxs[i];
                 std::cout << collision_boxes_[index].name << " ";
-                objects.push_back(collision_boxes_[index]);
+                objs.push_back(collision_boxes_[index]);
             }
             std::cout << "}" << std::endl;
 
             // sort by increasing x values
-            std::sort(objects.begin(), objects.end(), [](const util::CollisionGeometry& lhs, const util::CollisionGeometry& rhs)
+            std::sort(objs.begin(), objs.end(), [](const util::CollisionGeometry& lhs, const util::CollisionGeometry& rhs)
                 { return std::abs(lhs.pose.position.x) < std::abs(rhs.pose.position.x); });
         }
     }
