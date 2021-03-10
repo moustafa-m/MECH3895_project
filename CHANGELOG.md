@@ -2,6 +2,21 @@
 
 Noteable/major changes will be listed here
 
+## 10th March 2021
+
+### Added
+
+- verifyAndCorrectGraspPose() method.
+- srv to reset arm using motion planner, this will be used instead of the goToInit() method in the Controller class.
+  
+### Removed
+
+- removed attempt to push objects in opposite direction.
+
+### Fixed
+
+- blocking objects were not saved in the correct variable.
+
 ## 7th March 2021
 
 ### Added
