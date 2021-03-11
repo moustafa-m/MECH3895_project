@@ -369,7 +369,7 @@ void Planner::initROS()
     models_sub_ = nh_.subscribe("/gazebo/model_states", 10, &Planner::modelStatesCallback, this);
     start_plan_srv_ = nh_.advertiseService("/start_plan", &Planner::startPlanSrvCallback, this);
     reset_arm_srv_ = nh_.advertiseService("/reset_arm", &Planner::resetArmSrvCallback, this);
-    collisions_client_ = nh_.serviceClient<gazebo_geometries_plugin::geometry>("/gazebo/get_geometry", 10);
+    collisions_client_ = nh_.serviceClient<gazebo_geometries_plugin::geometry>("/gazebo/get_geometry");
 
     ros::param::param<std::vector<std::string>>("/gazebo/static_objects", static_objs_, {"INVALID"});
     ros::param::param<std::string>("~planner/name", planner_name_, "KPIECE1");

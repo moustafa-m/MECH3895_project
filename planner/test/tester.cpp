@@ -44,9 +44,9 @@ public:
 private:
     void init()
     {
-        planning_client_ = nh_.serviceClient<planner::start_plan>("/start_plan", 10);
-        randomiser_client_ = nh_.serviceClient<gazebo_scene_randomiser_plugin::randomise>("/gazebo/randomise_scene", 10);
-        reset_arm_client_ = nh_.serviceClient<std_srvs::Empty>("/reset_arm", 10);
+        planning_client_ = nh_.serviceClient<planner::start_plan>("/start_plan");
+        randomiser_client_ = nh_.serviceClient<gazebo_scene_randomiser_plugin::randomise>("/gazebo/randomise_scene");
+        reset_arm_client_ = nh_.serviceClient<std_srvs::Empty>("/reset_arm");
 
         if (!(planning_client_.exists() && randomiser_client_.exists()))
         {
