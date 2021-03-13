@@ -44,15 +44,14 @@ public:
 private:
     void init()
     {
-        planning_client_ = nh_.serviceClient<planner::start_plan>("/start_plan", 10);
-        randomiser_client_ = nh_.serviceClient<gazebo_scene_randomiser_plugin::randomise>("/gazebo/randomise_scene", 10);
-        open_gripper_client_ = nh_.serviceClient<std_srvs::Empty>("/open_gripper", 10);
-        init_client_ = nh_.serviceClient<std_srvs::Empty>("/go_to_init", 10);
-        home_client_ = nh_.serviceClient<std_srvs::Empty>("/go_to_home", 10);
+        planning_client_ = nh_.serviceClient<planner::start_plan>("/start_plan");
+        randomiser_client_ = nh_.serviceClient<gazebo_scene_randomiser_plugin::randomise>("/gazebo/randomise_scene");
+        reset_arm_client_ = nh_.serviceClient<std_srvs::Empty>("/reset_arm");
 
-        while (!planning_client_.exists() && ros::ok())
+        if (!(planning_client_.exists() && randomiser_client_.exists()))
         {
-            ROS_WARN_THROTTLE(5, "planning service is not up! Waiting...");
+            ROS_FATAL("Required services are not up! Make sure the planner and Gazebo nodes are up!");
+            exit(-1);
         }
 
         ros::param::param<int>("~num_runs", num_runs_, 10);
@@ -91,8 +90,7 @@ private:
     void resetArm()
     {
         std_srvs::Empty empty_req;
-        open_gripper_client_.call(empty_req);
-        init_client_.call(empty_req);
+        reset_arm_client_.call(empty_req);
     }
 
     void runPlannerAndLog()
@@ -136,9 +134,7 @@ private:
     ros::NodeHandle nh_;
     ros::ServiceClient planning_client_;
     ros::ServiceClient randomiser_client_;
-    ros::ServiceClient open_gripper_client_;
-    ros::ServiceClient init_client_;
-    ros::ServiceClient home_client_;
+    ros::ServiceClient reset_arm_client_;
 
     int num_runs_;
     std::string surface_;

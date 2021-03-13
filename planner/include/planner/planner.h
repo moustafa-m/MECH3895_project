@@ -15,6 +15,7 @@
 #include <ompl/base/objectives/StateCostIntegralObjective.h>
 #include <ompl/base/objectives/MaximizeMinClearanceObjective.h>
 #include <ompl/base/spaces/SE3StateSpace.h>
+#include <ompl/base/goals/GoalState.h>
 
 #include <ompl/geometric/planners/rrt/RRTstar.h>
 #include <ompl/geometric/planners/kpiece/KPIECE1.h>
@@ -76,21 +77,26 @@ private:
     bool generateTrajectory(trajectory_msgs::JointTrajectory& traj);
     void publishGoalMarker();
     void publishMarkers();
-    void modelStatesCallback(const gazebo_msgs::ModelStatesConstPtr msg);
+    void modelStatesCallback(gazebo_msgs::ModelStatesConstPtr msg);
     void update();
-    bool isObjectBlocked(std::vector<int>& idxs);
-    Planner::ActionType planInClutter(std::vector<int> idxs, std::vector<ob::ScopedState<ob::SE3StateSpace>>& states);
-    bool getPushAction(std::vector<ob::ScopedState<ob::SE3StateSpace>>& states, std::vector<util::CollisionGeometry>& objs,
+    bool verifyAndCorrectGraspPose(ob::ScopedState<ob::SE3StateSpace>& state);
+    bool isObjectBlocked(std::vector<util::CollisionGeometry>& objs);
+    Planner::ActionType planInClutter(const std::vector<util::CollisionGeometry>& objs,
+        std::vector<ob::ScopedState<ob::SE3StateSpace>>& states);
+    bool getPushAction(std::vector<ob::ScopedState<ob::SE3StateSpace>>& states, const std::vector<util::CollisionGeometry>& objs,
         const util::CollisionGeometry& geom);
     bool getGraspAction(std::vector<ob::ScopedState<ob::SE3StateSpace>>& states, const util::CollisionGeometry& geom);
     bool getPushGraspAction(const util::CollisionGeometry& geom, ob::ScopedState<ob::SE3StateSpace>& state);
     void executeAction(Planner::ActionType action);
+    void resetArm();
     bool startPlanSrvCallback(planner::start_plan::Request& req, planner::start_plan::Response& res);
+    bool resetArmSrvCallback(std_srvs::Empty::Request& req, std_srvs::Empty::Response& res);
 
     ros::NodeHandle nh_;
     ros::Publisher marker_pub_;
     ros::Subscriber models_sub_;
     ros::ServiceServer start_plan_srv_;
+    ros::ServiceServer reset_arm_srv_;
     ros::ServiceClient collisions_client_;
 
     bool save_path_;

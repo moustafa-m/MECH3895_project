@@ -3,6 +3,8 @@
 Planner::Planner(ros::NodeHandle* nh)
     : nh_(*nh), manipulator_(nh), controller_(nh, &manipulator_)
 {
+    goal_pos_.setIdentity();
+    goal_orient_.setIdentity();
     this->initROS();
     this->init();
 }
@@ -19,6 +21,12 @@ bool Planner::plan()
     state_checker_->setIKCheck(true);
 
     result_.reset();
+
+    if (!state_checker_->isValid(pdef_->getGoal()->as<ob::GoalState>()->getState()))
+    {
+        std::cout << RED << "[PLANNER]: Goal state is invalid!" << NC << std::endl;
+        return false;
+    }
 
     solutions_.clear();
     planner_->clear();
@@ -39,7 +47,7 @@ bool Planner::plan()
     }
 
     // now check if the object is blocked by non-static objects, if it is not, then the inital obtained path is used
-    std::vector<int> blocking_objs;
+    std::vector<util::CollisionGeometry> blocking_objs;
     if (this->isObjectBlocked(blocking_objs))
     {
         // disable checks for collision with target and non-static objects if clutter clearing is needed
@@ -232,13 +240,23 @@ void Planner::setGoal(const Eigen::Vector3d& goal, const Eigen::Quaterniond& ori
     goal_state->rotation().y = orientation.y();
     goal_state->rotation().z = orientation.z();
     goal_state->rotation().w = orientation.w();
+
+    if (!this->verifyAndCorrectGraspPose(goal_state))
+    {
+        std::cout << RED << "[PLANNER]: No valid grasp poses!\n";
+    }
+
     pdef_->clearGoal();
     pdef_->clearSolutionPaths();
     pdef_->setGoalState(goal_state);
 
-    goal_pos_ = goal;
-    goal_orient_ = orientation;
     this->publishGoalMarker();
+
+    goal_pos_ = Eigen::Vector3d(goal_state->getX(), goal_state->getY(), goal_state->getZ());
+    goal_orient_ = Eigen::Quaterniond(goal_state->rotation().w,
+                                    goal_state->rotation().x,
+                                    goal_state->rotation().y,
+                                    goal_state->rotation().z);
 
     std::cout << BLUE << "[PLANNER]: Goal pose set to:\n {"
         << goal_state->getX() << ", " << goal_state->getY() << ", "
@@ -350,7 +368,8 @@ void Planner::initROS()
     marker_pub_ = nh_.advertise<visualization_msgs::Marker>("/visualization_marker", 10);
     models_sub_ = nh_.subscribe("/gazebo/model_states", 10, &Planner::modelStatesCallback, this);
     start_plan_srv_ = nh_.advertiseService("/start_plan", &Planner::startPlanSrvCallback, this);
-    collisions_client_ = nh_.serviceClient<gazebo_geometries_plugin::geometry>("/gazebo/get_geometry", 10);
+    reset_arm_srv_ = nh_.advertiseService("/reset_arm", &Planner::resetArmSrvCallback, this);
+    collisions_client_ = nh_.serviceClient<gazebo_geometries_plugin::geometry>("/gazebo/get_geometry");
 
     ros::param::param<std::vector<std::string>>("/gazebo/static_objects", static_objs_, {"INVALID"});
     ros::param::param<std::string>("~planner/name", planner_name_, "KPIECE1");
@@ -462,16 +481,41 @@ bool Planner::generateTrajectory(trajectory_msgs::JointTrajectory& traj)
 void Planner::publishGoalMarker()
 {
     visualization_msgs::Marker marker;
-    marker.id = 0;
-    marker.scale = target_geom_.dimension;
-    marker.pose = target_geom_.pose;
-    marker.color.b = marker.color.a = 1.0;
-    marker.color.r = marker.color.g = 0.0;
+    if (!target_geom_.name.empty())
+    {
+        marker.id = 0;
+        marker.scale = target_geom_.dimension;
+        marker.pose = target_geom_.pose;
+        marker.color.b = marker.color.a = 1.0;
+        marker.color.r = marker.color.g = 0.0;
+        marker.ns = "goal";
+        marker.header.frame_id = manipulator_.getName() + "_link_base";
+        marker.header.stamp = ros::Time::now();
+        marker.action = visualization_msgs::Marker::ADD;
+        marker.type = visualization_msgs::Marker::CUBE;
+        marker_pub_.publish(marker);
+    }
+
+    marker.id = 1;
     marker.ns = "goal";
     marker.header.frame_id = manipulator_.getName() + "_link_base";
     marker.header.stamp = ros::Time::now();
+    marker.color.a = 1.0; marker.color.b = 1.0; marker.color.r = 0.3; marker.color.g = 0;
     marker.action = visualization_msgs::Marker::ADD;
-    marker.type = visualization_msgs::Marker::CUBE;
+    marker.type = visualization_msgs::Marker::ARROW;
+    
+    marker.scale.x = 0.1, marker.scale.y = 0.01, marker.scale.z = 0.05;
+    marker.pose.position.x = goal_pos_.x();
+    marker.pose.position.y = goal_pos_.y();
+    marker.pose.position.z = goal_pos_.z();
+
+    Eigen::Quaterniond quat = goal_orient_ * Eigen::AngleAxisd(-M_PI/2, Eigen::Vector3d::UnitY());
+    marker.pose.orientation.w = quat.w();
+    marker.pose.orientation.x = quat.x();
+    marker.pose.orientation.y = quat.y();
+    marker.pose.orientation.z = quat.z();
+
+    marker.points.resize(0);
     marker_pub_.publish(marker);
 }
 
@@ -559,14 +603,9 @@ void Planner::update()
 {
     this->clearMarkers();
 
-    std::vector<Eigen::Vector3d> manip_positions;
-    std::vector<Eigen::Quaterniond> manip_quats;
-    manipulator_.solveFK(manip_positions, manip_quats);
-    this->setStart(manip_positions.back(), manip_quats.back());
-
     collision_boxes_.clear();
 
-    for (size_t i = 0; i < models_->name.size(); i++)
+    for (int i = 0; i < models_->name.size(); i++)
     {
         if (models_->name[i].find(manipulator_.getName()) != std::string::npos) continue;
 
@@ -591,24 +630,14 @@ void Planner::update()
                 
                 collision_boxes_.push_back(temp);
 
-                if (temp.name == target_geom_.name)
-                {
-                    this->setTargetGeometry(temp);
-                    goal_pos_ = Eigen::Vector3d(temp.pose.position.x,
-                                                temp.pose.position.y,
-                                                temp.pose.position.z);
-
-                    goal_orient_ = manip_quats.back();
-                    
-                    this->setGoal(goal_pos_, goal_orient_);
-                }
+                if (temp.name == target_geom_.name) { this->setTargetGeometry(temp); }
             }
         }
     }
 
     int num_joints = manipulator_.getNumJoints();
     // collision geometries for Kinova links and fingers
-    for (int i = 0 ; i < num_joints+3; i++)
+    for (int i = 0; i < num_joints+3; i++)
     {
         std::string link;
         if (i < manipulator_.getNumJoints()) { link = "_link_" + std::to_string(i+1); }
@@ -636,15 +665,80 @@ void Planner::update()
             }
         }
     }
+
+    std::vector<Eigen::Vector3d> manip_positions;
+    std::vector<Eigen::Quaterniond> manip_quats;
+    manipulator_.solveFK(manip_positions, manip_quats);
+    this->setStart(manip_positions.back(), manip_quats.back());
+
+    goal_pos_ = Eigen::Vector3d(target_geom_.pose.position.x,
+                                target_geom_.pose.position.y,
+                                target_geom_.pose.position.z);
+    if (goal_orient_.coeffs() == Eigen::Quaterniond::Identity().coeffs()) goal_orient_ = manip_quats.back();
+
+    this->setGoal(goal_pos_, goal_orient_);
 }
 
-bool Planner::isObjectBlocked(std::vector<int>& idxs)
+bool Planner::verifyAndCorrectGraspPose(ob::ScopedState<ob::SE3StateSpace>& state)
 {
-    idxs.clear();
+    state_checker_->setIKCheck(true);
+    state_checker_->setNonStaticCollisions(false);
+    state_checker_->setTargetCollision(true);
+
+    if (state_checker_->isValid(state.get())) return true;
+
+    ROS_WARN("[PLANNER]: Grasp pose invalid, attempting to obtain a new one!");
+
+    ob::ScopedState<ob::SE3StateSpace> goal_state(space_);
+    goal_state = state;
+
+    Eigen::Quaterniond quat = goal_orient_;
+    int num_iterations = 500;
+    double increment = 2*M_PI/num_iterations;
+    for (int i = 1; i <= num_iterations; i++)
+    {
+        for (int j = 0; j <= 1; j++)
+        {
+            int dir = (j == 0) ? -1 : 1;
+            double rot_val = M_PI_2*double(dir)*i/num_iterations;
+
+            Eigen::Quaterniond new_quat = Eigen::AngleAxisd(rot_val, Eigen::Vector3d::UnitZ()) * quat;
+
+            // if (i % 100 == 0)
+            // {
+            //     goal_orient_ = new_quat;
+            //     this->publishGoalMarker();
+            //     sleep(2);
+            // }
+
+            goal_state->rotation().x = new_quat.x();
+            goal_state->rotation().y = new_quat.y();
+            goal_state->rotation().z = new_quat.z();
+            goal_state->rotation().w = new_quat.w();
+
+            if (state_checker_->isValid(goal_state.get()))
+            {
+                state = goal_state;
+                goal_orient_ = new_quat;
+                std::cout << GREEN << "[PLANNER]: found valid grasp pose!\n";
+                return true;
+            }
+        }
+    }
+
+    std::cout << RED << "[PLANNER]: Failed to find valid grasp pose!\n";
+    return false;
+}
+
+bool Planner::isObjectBlocked(std::vector<util::CollisionGeometry>& objs)
+{
+    objs.clear();
     bool clear = true;
 
     ob::ScopedState<ob::SE3StateSpace> start(space_);
     start = pdef_->getStartState(0);
+
+    std::vector<int> idxs;
 
     for (size_t i = 0; i < collision_boxes_.size(); i++)
     {
@@ -675,8 +769,27 @@ bool Planner::isObjectBlocked(std::vector<int>& idxs)
 
     if (!clear)
     {
-        if (idxs.empty()) { std::cout << CYAN << "[PLANNER]: Object is blocked" << NC << std::endl; }
-        else { std::cout << CYAN << "[PLANNER]: Path blocked, found " << idxs.size() << " objects to clear" << NC << std::endl; }
+        if (idxs.empty())
+        {
+            std::cout << CYAN << "[PLANNER]: Object is blocked" << NC << std::endl;
+        }
+        else
+        {
+            std::cout << CYAN << "[PLANNER]: Path blocked, found " << idxs.size() << " objects to clear" << NC << std::endl;
+            
+            std::cout << CYAN << "[PLANNER]: { ";
+            for (int i = 0; i < idxs.size(); i++)
+            {
+                int index = idxs[i];
+                std::cout << collision_boxes_[index].name << " ";
+                objs.push_back(collision_boxes_[index]);
+            }
+            std::cout << "}" << std::endl;
+
+            // sort by increasing x values
+            std::sort(objs.begin(), objs.end(), [](const util::CollisionGeometry& lhs, const util::CollisionGeometry& rhs)
+                { return std::abs(lhs.pose.position.x) < std::abs(rhs.pose.position.x); });
+        }
     }
 
     return !clear;
@@ -684,40 +797,36 @@ bool Planner::isObjectBlocked(std::vector<int>& idxs)
 
 //TODO: might be worth to put the path planning and action planning bits together in here.
 // This will require splitting this up however.
-Planner::ActionType Planner::planInClutter(std::vector<int> idxs, std::vector<ob::ScopedState<ob::SE3StateSpace>>& states)
+Planner::ActionType Planner::planInClutter(const std::vector<util::CollisionGeometry>& objs,
+    std::vector<ob::ScopedState<ob::SE3StateSpace>>& states)
 {
     state_checker_->setIKCheck(false);
     ob::ScopedState<ob::SE3StateSpace> state(space_);
     state = pdef_->getStartState(0);
 
     bool should_init = std::abs(state->getY() - goal_pos_.y()) > 0.03;
-
-    if (!idxs.empty())
+    if (should_init)
     {
-        std::vector<util::CollisionGeometry> objects;
-        std::cout << CYAN << "[PLANNER]: { ";
-        for (int i = 0; i < idxs.size(); i++)
-        {
-            int index = idxs[i];
-            std::cout << collision_boxes_[index].name << " ";
-            objects.push_back(collision_boxes_[index]);
-        }
-        std::cout << "}" << std::endl;
+        double init_x = (objs.empty()) ? goal_pos_.x()*0.60 : objs[0].pose.position.x*0.60;
+        double init_y = goal_pos_.y();
+        double init_z = goal_pos_.z();
+        state->setXYZ(init_x, init_y, init_z);
 
-        // sort by increasing x values
-        std::sort(objects.begin(), objects.end(), [](const util::CollisionGeometry& lhs, const util::CollisionGeometry& rhs)
-            { return std::abs(lhs.pose.position.x) < std::abs(rhs.pose.position.x); });
-
-        if (should_init)
+        if (state_checker_->isValid(state.get()))
         {
-            // move end effector to match object's Y and Z positions
-            state->setX(objects[0].pose.position.x * 0.60);
-            state->setY(goal_pos_.y());
-            state->setZ(goal_pos_.z());
             states.push_back(state);
         }
+        else if (std::abs(state->getY() - init_y*0.8) > 0.03)
+        {
+            // if not valid, most likely that object is close to a wall, so, offset end-effector a bit
+            state->setY(init_y*0.8);
+            states.push_back(state);
+        }
+    }
 
-        bool success = this->getPushAction(states, objects, objects.front());
+    if (!objs.empty())
+    {
+        bool success = this->getPushAction(states, objs, objs.front());
 
         if (success)
         {
@@ -725,29 +834,20 @@ Planner::ActionType Planner::planInClutter(std::vector<int> idxs, std::vector<ob
         }
         else
         {
-            success = this->getGraspAction(states, objects.front());
+            success = this->getGraspAction(states, objs.front());
             return (success) ? ActionType::GRASP : ActionType::NONE;
         }
     }
     else
     {
-        if (should_init)
-        {
-            // if the indices array is empty, objects are surronding the object but may be pushed by a grasp attempt
-            state->setX(goal_pos_.x()*0.60);
-            state->setY(goal_pos_.y());
-            state->setZ(goal_pos_.z());
-            states.push_back(state);
-        }
-        
-        if (!this->getPushGraspAction(target_geom_, state)) { return Planner::ActionType::NONE; }
+        if (!this->getPushGraspAction(target_geom_, state)) { return ActionType::NONE; }
         states.push_back(state);
 
-        return Planner::ActionType::PUSH_GRASP;
+        return ActionType::PUSH_GRASP;
     }
 }
 
-bool Planner::getPushAction(std::vector<ob::ScopedState<ob::SE3StateSpace>>& states, std::vector<util::CollisionGeometry>& objs,
+bool Planner::getPushAction(std::vector<ob::ScopedState<ob::SE3StateSpace>>& states, const std::vector<util::CollisionGeometry>& objs,
     const util::CollisionGeometry& geom)
 {
     if (std::abs(goal_pos_.x()) - std::abs(geom.pose.position.x) <= 0.07)
@@ -809,18 +909,6 @@ bool Planner::getPushAction(std::vector<ob::ScopedState<ob::SE3StateSpace>>& sta
 
     if (!state_checker_->isValid(init_state.get()))
     {
-        direction = -1;
-        desired_y = geom.pose.position.y - direction*init_dist;
-        init_state->setY(desired_y);
-
-        // if 0 -> push action not possible
-        direction = (state_checker_->isValid(init_state.get())) ? -1 : 0;
-    }
-
-    state_checker_->setIKCheck(false);
-
-    if (direction == 0)
-    {
         std::cout << RED << "[PLANNER]: Failed to get push action" << std::endl;
         return false;
     }
@@ -829,7 +917,10 @@ bool Planner::getPushAction(std::vector<ob::ScopedState<ob::SE3StateSpace>>& sta
     push_state = init_state;
 
     double clearance = 0.1 - std::abs(geom.pose.position.y - target_geom_.pose.position.y);
-    double push_dist = clearance + (init_dist - geom.dimension.y*0.5);
+    // y coord of the object's corner
+    double geom_extreme_ycoord = geom.pose.position.y + direction*geom.dimension.y*0.5;
+    double push_dist = clearance + std::abs(desired_y - geom_extreme_ycoord);
+    push_dist -= 0.03; // subtract 3cm to account for the fingers making contact, not the center of the end-effector frame
 
     // push action
     push_state->setY(desired_y + direction*(push_dist));
@@ -908,7 +999,7 @@ bool Planner::getGraspAction(std::vector<ob::ScopedState<ob::SE3StateSpace>>& st
     grasp_state = relocate_state = start = pdef_->getStartState(0);
     grasp_state->setXYZ(geom.pose.position.x, geom.pose.position.y, goal_pos_.z());
 
-    if (!state_checker_->isValid(grasp_state.get()))
+    if (!this->verifyAndCorrectGraspPose(grasp_state))
     {
         std::cout << RED << "[PLANNER]: " << geom.name << " cannot be grasped!" << std::endl;
         return false;
@@ -951,7 +1042,7 @@ bool Planner::getPushGraspAction(const util::CollisionGeometry& geom, ob::Scoped
                         geom.pose.position.y,
                         geom.pose.position.z);
 
-    state = pdef_->getStartState(0);
+    state = pdef_->getGoal()->as<ob::GoalState>()->getState();
 
     // check if any object is close behind the object, which would interfere with the final object push
     bool obj_behind = false;
@@ -1043,14 +1134,76 @@ void Planner::executeAction(Planner::ActionType action)
     }
 }
 
+void Planner::resetArm()
+{
+    std::vector<Eigen::Vector3d> start_positions;
+    std::vector<Eigen::Vector3d> goal_positions;
+    std::vector<Eigen::Quaterniond> goal_orientations;
+    manipulator_.solveFK(start_positions, goal_orientations);
+    manipulator_.solveFK(goal_positions, goal_orientations, manipulator_.getInitPose());
+
+    Eigen::Vector3d diff = start_positions.back() - goal_positions.back();
+    if (std::abs(diff.x()) < 5e-2 &&
+        std::abs(diff.y()) < 5e-2 &&
+        std::abs(diff.z()) < 5e-2)
+    { return; }
+    
+    // fake target geometry
+    util::CollisionGeometry geom;
+    geom.pose.position.x = goal_positions.back().x();
+    geom.pose.position.y = goal_positions.back().y();
+    geom.pose.position.z = goal_positions.back().z();
+
+    goal_pos_ = goal_positions.back();
+    goal_orient_ = goal_orientations.back();
+
+    this->setTargetGeometry(geom);
+    this->update();
+    controller_.openGripper();
+
+    state_checker_->setNonStaticCollisions(false);
+
+    if (!state_checker_->isValid(pdef_->getStartState(0)))
+    {
+        controller_.goToInit();
+        return;
+    }
+
+    solutions_.clear();
+    pdef_->clearSolutionPaths();
+    planner_->clear();
+    planner_->setProblemDefinition(pdef_);
+    if (!planner_->isSetup()) planner_->setup();
+
+    state_checker_->setNonStaticCollisions(false);
+    ob::PlannerStatus solved = planner_->solve(timeout_);
+
+    if (solved == ob::PlannerStatus::EXACT_SOLUTION)
+    {
+        og::PathSimplifierPtr simplifier = og::PathSimplifierPtr(new og::PathSimplifier(si_));
+        simplifier->simplifyMax(*pdef_->getSolutionPath()->as<og::PathGeometric>());
+        pdef_->getSolutionPath()->as<og::PathGeometric>()->interpolate(10);
+
+        solutions_.push_back(*pdef_->getSolutionPath()->as<og::PathGeometric>());
+
+        trajectory_msgs::JointTrajectory traj;
+        if (this->generateTrajectory(traj))
+        {
+            this->publishMarkers();
+            controller_.sendAction(traj);
+        }
+    }
+
+    this->clearMarkers();
+}
+
 bool Planner::startPlanSrvCallback(planner::start_plan::Request& req, planner::start_plan::Response& res)
 {
     ROS_INFO("%s[PLANNER]: Received plan request for [%s]", CYAN, req.target.c_str());
 
     if (req.target.find("_collision") == std::string::npos) req.target += "_collision";
 
-    controller_.goToInit();
-    controller_.openGripper();
+    this->resetArm();
     
     target_geom_.name = req.target;
     target_geom_.dimension.x = target_geom_.dimension.y = target_geom_.dimension.z = -1;
@@ -1089,5 +1242,12 @@ bool Planner::startPlanSrvCallback(planner::start_plan::Request& req, planner::s
     else if (res.grasp_success) { res.message = "Solution found and grasp attempt was successful!"; }
     else { res.message = "Solution found but grasp attempt failed!"; }
 
+    return true;
+}
+
+bool Planner::resetArmSrvCallback(std_srvs::Empty::Request& req, std_srvs::Empty::Response& res)
+{
+    ROS_INFO("%s[PLANNER]: Recieved srv request to reset arm", CYAN);
+    this->resetArm();
     return true;
 }
