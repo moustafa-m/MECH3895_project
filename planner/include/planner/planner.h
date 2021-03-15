@@ -5,6 +5,7 @@
 #include <eigen3/Eigen/Geometry>
 #include <boost/filesystem.hpp>
 #include <visualization_msgs/Marker.h>
+#include <nav_msgs/OccupancyGrid.h>
 #include <trajectory_msgs/JointTrajectory.h>
 #include <gazebo_geometries_plugin/geometry.h>
 #include <gazebo_msgs/ModelStates.h>
@@ -76,6 +77,7 @@ private:
     void initROS();
     bool generateTrajectory(trajectory_msgs::JointTrajectory& traj);
     void publishGoalMarker();
+    void publishGridMap();
     void publishMarkers();
     void modelStatesCallback(gazebo_msgs::ModelStatesConstPtr msg);
     void update();
@@ -94,6 +96,7 @@ private:
 
     ros::NodeHandle nh_;
     ros::Publisher marker_pub_;
+    ros::Publisher grid_pub_;
     ros::Subscriber models_sub_;
     ros::ServiceServer start_plan_srv_;
     ros::ServiceServer reset_arm_srv_;

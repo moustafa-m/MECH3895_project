@@ -366,6 +366,7 @@ void Planner::init()
 void Planner::initROS()
 {
     marker_pub_ = nh_.advertise<visualization_msgs::Marker>("/visualization_marker", 10);
+    grid_pub_ = nh_.advertise<nav_msgs::OccupancyGrid>("/surface_grid", 10);
     models_sub_ = nh_.subscribe("/gazebo/model_states", 10, &Planner::modelStatesCallback, this);
     start_plan_srv_ = nh_.advertiseService("/start_plan", &Planner::startPlanSrvCallback, this);
     reset_arm_srv_ = nh_.advertiseService("/reset_arm", &Planner::resetArmSrvCallback, this);
@@ -526,6 +527,36 @@ void Planner::publishGoalMarker()
     marker_pub_.publish(marker);
 }
 
+void Planner::publishGridMap()
+{
+    nav_msgs::OccupancyGrid grid;
+    grid.info.width = surface_grid_.width;
+    grid.info.height = surface_grid_.height;
+    grid.info.resolution = surface_grid_.resolution;
+
+    grid.info.origin.position.x = surface_grid_.origin.x();
+    grid.info.origin.position.y = surface_grid_.origin.y();
+    grid.info.origin.position.z = surface_geom_.pose.position.z + surface_geom_.dimension.z*1.5;
+    grid.info.origin.orientation = surface_geom_.pose.orientation;
+
+    grid.info.map_load_time = ros::Time::now();
+
+    grid.header.frame_id = manipulator_.getName() + "_link_base";
+    grid.header.stamp = ros::Time::now();
+    grid.header.seq += 1;
+
+    grid.data.resize(grid.info.width*grid.info.height);
+
+    for (int i = 0; i < surface_grid_.width; i++)
+    {
+        for (int j = 0; j < surface_grid_.height; j++)
+        {
+            grid.data[i + j*surface_grid_.width] = 100*(surface_grid_.nodes[i + j*surface_grid_.width].occupied);
+        }
+    }
+    grid_pub_.publish(grid);
+}
+
 void Planner::publishMarkers()
 {
     int marker_id = 0;
@@ -675,6 +706,7 @@ void Planner::update()
     }
 
     surface_grid_ = util::discretise2DShape(surface_geom_, surface_parent_name_, manipulator_.getName(), collision_boxes_, 0.01);
+    this->publishGridMap();
 
     std::vector<Eigen::Vector3d> manip_positions;
     std::vector<Eigen::Quaterniond> manip_quats;
