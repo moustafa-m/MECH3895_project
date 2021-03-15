@@ -45,9 +45,11 @@ There are two parameters files, one for [Gazebo](kinova_gazebo/params/gazebo_par
 ### Gazebo Parameters
 - ```gazebo/static_objects``` - string array containing which objects are to be considered static, these will be displayed in red in Rviz.
 - ```gazebo/pub_arm_geom``` - bool to trigger visualisation of the Kinova's collision boxes in Rviz. (purely visual, doesn't affect anything)
+- ```gazebo/surface``` - the name of the surface that is being worked, this is set during launch. (Check the [demo](#running-a-demo) section for details on launching)
 
 ### Planner Parameters
 - ```planner/name``` - name of the sampling motion planner to be used.
+- ```planner/global_timeout``` - total timeout for planning + execution time in clutter.
 - ```planner/timeout``` - timeout duration for the planner.
 - ```planner/path_states``` - number of states to be interpolated in generated paths.
 - ```planner/save_path``` - bool to trigger saving of solution paths in [paths directory](planner/paths).
@@ -96,10 +98,17 @@ $ roslaunch planner gazebo.launch
 
 A Gazebo and Rviz windows should popup.
 
-If desired, you can pass in a world argument to launch a different scene from the [worlds](kinova_gazebo/worlds) folder. The default is ```kinova_tableV1```.
+If desired, you can pass in a world argument to launch a different scene from the [worlds](kinova_gazebo/worlds) folder. The default is ```kinova_table```.
 ```
-$ roslaunch planner gazebo.launch world:=kinova_tableV2
+$ roslaunch planner gazebo.launch world:=kinova_cabinet surface=cabinet_link_middle_plate
 ```
+
+for more info on obtaining surface names from Gazebo, check the gazebo_scene_randomiser_plugin [README](gazebo_scene_randomiser_plugin/README.md).  
+As a starting point you can use the below surface names for each world file in this repo.
+
+- kinova_table - small_table_link_surface (this is the default)
+- kinova_shelf - bookshelf_link_low_shelf
+- kinova_cabinet - cabinet_link_middle_plate
 
 **NOTE:** if Gazebo models need to be installed, Gazebo node may not launch correctly. Gazebo will take some time to load as it is downloading required models, once loaded the arm will probably just fall due to controller timeout. Resolved by relaunching after Gazebo finishes downloading models and loads up.  
 
@@ -116,7 +125,15 @@ The arm will not do anything until a planning request for a specific target is s
 $ rosservice call /start_plan "target: 'object_name'" 
 ```
 
-Replace **object_name** with the name of an object in Gazebo. This must be a non-static object.
+Replace ```object_name``` with the name of an object in Gazebo. This must be a non-static object. As a start use ```cylinder``` which is the green cylinder in the world files in this repo.
+
+Alternatively, you can use the testing node to perform multiple runs:
+
+```
+$ roslaunch planner tester.launch num_runs:=number
+```
+
+Replace ```number``` with the number of runs you want to do.
 
 ## Third Party Packages
 All third party licenses can be found in their respective folders in this repository and their original repositories linked below.
