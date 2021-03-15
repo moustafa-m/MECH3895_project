@@ -122,6 +122,8 @@ bool Planner::plan()
                     pdef->getSolutionPath()->as<og::PathGeometric>()->interpolate(path_states_);
                     solutions_.push_back(*pdef->getSolutionPath()->as<og::PathGeometric>());
                     this->publishMarkers();
+
+                    if (save_path_) { this->savePath(); }
                 }
                 else
                 {
@@ -178,6 +180,8 @@ bool Planner::plan()
 
         plan_timer.pause();
 
+        if (save_path_) { this->savePath(); }
+
         exectuion_timer.start();
         controller_.sendAction(traj);
         controller_.closeGripper();
@@ -189,8 +193,6 @@ bool Planner::plan()
     result_.path_found = true;
 
     std::cout << GREEN << "[PLANNER]: Solution found!\n";
-
-    if (save_path_) { this->savePath(); }
 
     // verify grasp attempt
     std::vector<Eigen::Vector3d> positions;
@@ -728,9 +730,11 @@ bool Planner::verifyAndCorrectGraspPose(ob::ScopedState<ob::SE3StateSpace>& stat
     ob::ScopedState<ob::SE3StateSpace> goal_state(space_);
     goal_state = state;
 
-    Eigen::Quaterniond quat = goal_orient_;
+    Eigen::Quaterniond quat(goal_state->rotation().w,
+                            goal_state->rotation().x,
+                            goal_state->rotation().y,
+                            goal_state->rotation().z);
     int num_iterations = 500;
-    double increment = 2*M_PI/num_iterations;
     for (int i = 1; i <= num_iterations; i++)
     {
         for (int j = 0; j <= 1; j++)
