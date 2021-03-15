@@ -11,10 +11,12 @@
   <arg name="debug" default="false"/>
   <arg name="use_trajectory_controller" default="true"/>
   <arg name="is7dof" default="true"/>
+  <arg name="surface" default="small_table_link_surface"/>
 
   <!-- put relevant parameters up on the parameter server -->
   <rosparam command="load"  file="$(find kinova_gazebo)/params/gazebo_params.yaml" />
   <param name="robot_name"  type="string"   value="$(arg kinova_robotName)" />
+  <param name="/gazebo/surface"     type="string"   value="$(arg surface)" />
 
   <!-- We resume the logic in empty_world.launch, changing only the name of the world to be launched -->
   <include file="$(find gazebo_ros)/launch/empty_world.launch">

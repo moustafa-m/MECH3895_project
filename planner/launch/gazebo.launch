@@ -9,6 +9,7 @@
   <arg name="debug" default="false"/>
   <arg name="use_trajectory_controller" default="true"/>
   <arg name="is7dof" default="true"/>
+  <arg name="surface" default="small_table_link_surface"/>
 
   <include file="$(find kinova_gazebo)/launch/robot_launch.launch">
     <arg name="kinova_robotType" value="$(arg robot)"/>
@@ -20,6 +21,7 @@
     <arg name="debug" value="$(arg debug)"/>
     <arg name="use_trajectory_controller" value="$(arg use_trajectory_controller)"/>
     <arg name="is7dof" value="$(arg is7dof)"/>
+    <arg name="surface" value="$(arg surface)"/>
   </include>
 
 </launch>

@@ -1,11 +1,9 @@
 <launch>
 
     <arg name="num_runs"    default="10" />
-    <arg name="surface"     default="short_table_link_surface" />
 
     <node name="planner_tester_node" pkg="planner" type="tester" output="screen" >
         <param name="num_runs"      value="$(arg num_runs)" />
-        <param name="surface"       value="$(arg surface)" />
     </node>
 
 </launch>

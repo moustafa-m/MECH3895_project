@@ -55,7 +55,7 @@ private:
         }
 
         ros::param::param<int>("~num_runs", num_runs_, 10);
-        ros::param::param<std::string>("~surface", surface_, "short_table_link_surface");
+        ros::param::param<std::string>("/gazebo/surface", surface_, "small_table_link_surface");
         ros::param::param<std::string>("/robot_name", robot_name_, "j2s7s300");
 
         if (num_runs_ <= 0)
