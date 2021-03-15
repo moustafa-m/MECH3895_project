@@ -372,11 +372,17 @@ void Planner::initROS()
     collisions_client_ = nh_.serviceClient<gazebo_geometries_plugin::geometry>("/gazebo/get_geometry");
 
     ros::param::param<std::vector<std::string>>("/gazebo/static_objects", static_objs_, {"INVALID"});
+    ros::param::param<std::string>("/gazebo/surface", surface_geom_.name, "small_table_link_surface");
     ros::param::param<std::string>("~planner/name", planner_name_, "KPIECE1");
     ros::param::param<int>("~planner/global_timeout", global_timeout_, 300);
     ros::param::param<int>("~planner/timeout", timeout_, 60);
     ros::param::param<int>("~planner/path_states", path_states_, 10);
     ros::param::param<bool>("~planner/save_path", save_path_, false);
+
+    std::size_t pos = surface_geom_.name.find("link_");
+    surface_parent_name_ = surface_geom_.name.substr(0, pos);
+    // part with "link_" is not needed due to the geometries plugin not including it in the returned variables
+    surface_geom_.name.erase(pos, 5);
 
     if (planner_name_ != "KPIECE1" && planner_name_ != "BFMT" && planner_name_ != "RRTStar")
     {
@@ -390,6 +396,7 @@ void Planner::initROS()
     std::stringstream ss;
     for (int i = 0; i < static_objs_.size(); i++) { ss << static_objs_[i] << " "; }
     ROS_INFO_STREAM(BLUE << "Static Objs\t: " << ss.str());
+    ROS_INFO_STREAM(BLUE << "surface\t\t: " << surface_geom_.name);
     ROS_INFO_STREAM(BLUE << "name\t\t: " << planner_name_);
     ROS_INFO_STREAM(BLUE << "global_timeout\t: " << global_timeout_);
     ROS_INFO_STREAM(BLUE << "timeout\t\t: " << timeout_);
@@ -631,6 +638,7 @@ void Planner::update()
                 collision_boxes_.push_back(temp);
 
                 if (temp.name == target_geom_.name) { this->setTargetGeometry(temp); }
+                else if (temp.name == surface_geom_.name) { surface_geom_ = temp; }
             }
         }
     }
@@ -665,6 +673,8 @@ void Planner::update()
             }
         }
     }
+
+    surface_grid_ = util::discretise2DShape(surface_geom_, surface_parent_name_, manipulator_.getName(), collision_boxes_, 0.01);
 
     std::vector<Eigen::Vector3d> manip_positions;
     std::vector<Eigen::Quaterniond> manip_quats;

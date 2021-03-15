@@ -43,7 +43,7 @@ public:
         GRASP
     };
 
-    typedef struct PlannerResult
+    struct PlannerResult
     {
         bool path_found = false;
         bool partial_solution = false;
@@ -57,7 +57,7 @@ public:
             path_found = partial_solution = grasp_success = false;
             num_actions = plan_time = execution_time = 0.0;
         }
-    } PlannerResult;
+    };
 
 public:
     Planner(ros::NodeHandle* nh);
@@ -110,6 +110,9 @@ private:
 
     PlannerResult result_;
     util::CollisionGeometry target_geom_;
+    util::CollisionGeometry surface_geom_;
+    std::string surface_parent_name_;
+    util::Grid2D surface_grid_;
     gazebo_msgs::ModelStatesConstPtr models_;
 
     std::vector<std::string> static_objs_;
