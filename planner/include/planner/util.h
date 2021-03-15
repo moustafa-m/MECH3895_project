@@ -7,18 +7,39 @@
 #include <cmath>
 #include <iostream>
 #include <boost/shared_ptr.hpp>
+#include <eigen3/Eigen/Geometry>
 #include "defines.h"
 
 namespace util
 {
-    typedef struct CollisionGeometry
+    struct CollisionGeometry
     {
         std::string name;
         geometry_msgs::Vector3 min;
         geometry_msgs::Vector3 max;
         geometry_msgs::Vector3 dimension;
         geometry_msgs::Pose pose;
-    } CollisionGeometry;
+    };
+
+    struct GridNode
+    {
+        // Eigen::Vector2d top_left = Eigen::Vector2d(NAN, NAN);
+        Eigen::Vector2d bot_left = Eigen::Vector2d(NAN, NAN);
+        Eigen::Vector2d center = Eigen::Vector2d(NAN, NAN);
+        bool occupied = false;
+        double size = 0.0;
+        Eigen::Quaterniond orientation = Eigen::Quaterniond(NAN, NAN, NAN, NAN);
+    };
+
+    struct Grid2D
+    {
+        int width = 0;
+        int height = 0;
+        double resolution = 0;
+        Eigen::Vector2d origin = Eigen::Vector2d(NAN, NAN);
+        Eigen::Quaterniond rotation = Eigen::Quaterniond(NAN, NAN, NAN, NAN);
+        std::vector<GridNode> nodes;
+    };
 
     inline bool operator==(const CollisionGeometry& lhs, const CollisionGeometry& rhs)
     {
@@ -55,4 +76,7 @@ namespace util
 
         return true;
     }
+
+    Grid2D discretise2DShape(const CollisionGeometry& geom, const std::string& parent_name, const std::string& robot_name,
+        const std::vector<CollisionGeometry>& objects, const double& resolution = 0.02);
 }
