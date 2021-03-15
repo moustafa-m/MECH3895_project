@@ -1019,10 +1019,6 @@ bool Planner::getPushAction(std::vector<ob::ScopedState<ob::SE3StateSpace>>& sta
 
 bool Planner::getGraspAction(std::vector<ob::ScopedState<ob::SE3StateSpace>>& states, const util::CollisionGeometry& geom)
 {
-    // This implementation only relocates objects by grasping and then dropping them else where.
-    // Would be nice to add sort of a grasping push (grasp and relocated by pushing it) either
-    // here or in the getPushAction() method.
-
     Eigen::Vector3d dim(geom.dimension.x, geom.dimension.y, geom.dimension.z);
     Eigen::Quaterniond rot(geom.pose.orientation.w,
                         geom.pose.orientation.x,
@@ -1030,7 +1026,7 @@ bool Planner::getGraspAction(std::vector<ob::ScopedState<ob::SE3StateSpace>>& st
                         geom.pose.orientation.z);
 
     dim = rot * dim;
-    if (dim.y() >= 0.085)
+    if (dim.y() >= 0.075)
     {
         std::cout << RED << "[PLANNER]: Object too large for grasping! y-axis Dimension: " << dim.y()
             << " (" << geom.dimension.y << " without rot)" << std::endl;
@@ -1047,35 +1043,193 @@ bool Planner::getGraspAction(std::vector<ob::ScopedState<ob::SE3StateSpace>>& st
         return false;
     }
 
-    double x_mean = geom.pose.position.x*0.3;
-    double y_mean = geom.pose.position.y;
-    std::uniform_real_distribution<double> x_dist(x_mean-0.10, x_mean+0.10);
-    std::uniform_real_distribution<double> y_dist(y_mean-0.15, y_mean+0.15);
-    std::random_device rseed;
-    std::mt19937 rng(rseed());
-
-    bool found_state = false;
-    Timer timer;
-    timer.start();
-    while (timer.elapsedMillis() <= 5000)
+    // ---> Helper functions
+    // checks if the indices are within the grid's bounds
+    auto isInside = [&, this](int col, int row)
     {
-        relocate_state->setXYZ(x_dist(rng), y_dist(rng), start->getZ());
-        if (state_checker_->isValid(relocate_state.get()))
+        return col > 0 && col < surface_grid_.width && row > 0 && row < surface_grid_.height;
+    };
+
+    // returns a pair, first element is the number of closeby objects, second is the distance to the closest object
+    auto getNumObjClose = [&, this](const Eigen::Vector2d& pos, const double& thresh = 0.15)
+    {
+        int num_close_objects = 0;
+        double least_dist = std::numeric_limits<double>::infinity();
+        for (int i = 0; i < collision_boxes_.size(); i++)
+        {   
+            if (surface_geom_ == collision_boxes_[i] || geom == collision_boxes_[i]) { continue; }
+
+            Eigen::Vector2d obj_pos(collision_boxes_[i].pose.position.x,
+                                    collision_boxes_[i].pose.position.y);
+            
+            Eigen::Vector2d diff = pos - obj_pos;
+            if (diff.norm() <= thresh) { num_close_objects++; }
+            if (diff.norm() <= least_dist) { least_dist = diff.norm(); }
+        }
+
+        return std::pair<int, double>{num_close_objects, least_dist};
+    };
+    // <---Helper functions 
+
+    // ---> variables
+    // f(x) = w1*num_neighbours + w2*num_objs + w3*obj_dist + w4*travel_dist, where w1, w2, w3 & w4 are weights
+    // Objective is to find the grid cell with the highest value for f(x)
+    // num_neighbours is the number of unoccupied neighbouring cells
+    // num_objects is number of objects close by to the cell for which f(x) is being computed
+    // obj_dist is the distance to the closest object
+    // travel_dist is the direct distance between the initial and final states
+    double w1 = 2, w2 = -2, w3 = 5, w4 = -50;
+    double val, best_val;
+    val = best_val = -1*std::numeric_limits<double>::infinity();
+
+    ob::ScopedState<ob::SE3StateSpace> ditto_state(space_);
+    ditto_state = grasp_state;
+    
+    Eigen::Vector2d best_pos(NAN, NAN);
+    Eigen::Vector2d target_pos(target_geom_.pose.position.x,
+                            target_geom_.pose.position.y);
+
+    std::vector<std::pair<int, int>> directions = { {1,0}, {-1,0}, {0,1}, {0,-1} };
+    
+    bool found_state = false;
+    // <--- variables
+    
+    // This performs a limited BFS on all the grid nodes to find a node that has the highest value for f(x)
+    // ---> start search
+    for (int i = 0; i < surface_grid_.width; i++)
+    {
+        for (int j = 0; j < surface_grid_.height; j++)
         {
-            found_state = true;
-            states.push_back(grasp_state);
-            states.push_back(relocate_state);
-            timer.reset();
-            break;
+            util::GridNode node = surface_grid_.nodes[i + j*surface_grid_.width];
+
+            if (node.occupied) { continue; }
+            
+            ditto_state->setX(node.center.x());
+            ditto_state->setY(node.center.y());
+            
+            Eigen::Vector2d diff = node.center - target_pos;
+            
+            // check some conditions before deciding if BFS will be performed on this node.
+            // the distance conditions ensure the arm stays within a certain region relative
+            // to the target object. This makes it so that there is less likelihood of causing
+            // unwanted changes to the scene that affect the target.
+            if (state_checker_->isValid(ditto_state.get()) &&
+                std::abs(diff.y()) >= 0.15 &&
+                std::abs(target_pos.x()) - std::abs(node.center.x()) >= 0.05)
+            {
+                // ---> start BFS
+                // std::cout << "BFS for " << node.center << "\n\n";
+                std::vector<bool> visited(surface_grid_.nodes.size());
+                std::queue<std::pair<int, int>> queue;
+                queue.push({i, j});
+                visited[i + j*surface_grid_.width] = true;
+
+                Eigen::Vector2d center;
+                center = node.center;
+
+                int num_good_neighbours = 0;
+
+                while (!queue.empty())
+                {
+                    std::pair<int, int> point = queue.front();
+                    queue.pop();
+
+                    util::GridNode curr_node = surface_grid_.nodes[point.first + point.second*surface_grid_.width];
+                    for (std::pair<int, int> dir : directions)
+                    {
+                        int new_x = point.first + dir.first;
+                        int new_y = point.second + dir.second;
+                        
+                        if (!isInside(new_x, new_y)) { continue; }
+
+                        util::GridNode new_node = surface_grid_.nodes[new_x + new_y*surface_grid_.width];
+                        Eigen::Vector2d dist_vec = new_node.center - node.center;
+
+                        if (!(visited[new_x + new_y*surface_grid_.width] || new_node.occupied) && dist_vec.norm() <= 0.06)
+                        {
+                            // std::cout << new_node.center << " is valid: " << dist_vec.norm() << "\n\n";
+                            queue.push({new_x, new_y});
+                            num_good_neighbours++;
+                            visited[new_x + new_y*surface_grid_.width] = true;
+                            center = 0.5*(curr_node.center + new_node.center);
+                        }
+                    }
+                }
+                // <--- end BFS
+                
+                // take initial state as the grasp state which is equivalent to the grasp target position
+                Eigen::Vector2d grasp_target_pos(geom.pose.position.x, geom.pose.position.y);
+                double dist = (center - grasp_target_pos).norm();
+
+                std::pair<int, double> num_close_objects = getNumObjClose(center);
+
+                // evaluate node using f(x)
+                val = w1*num_good_neighbours + w2*num_close_objects.first + w3*num_close_objects.second + w4*dist;
+                // std::cout << "\n----------\n\n";
+
+                ditto_state->setX(center.x());
+                ditto_state->setY(center.y());
+                if (val > best_val && state_checker_->isValid(ditto_state.get()))
+                {
+                    best_val = val;
+                    best_pos = center;
+                    found_state = true;
+                }
+            }
+        }
+    }
+    // <--- end search
+
+    if (found_state)
+    {
+        std::cout << GREEN << "[PLANNER]: Found position to relocate object!\npos: "
+            << best_pos.format(Eigen::IOFormat(3, Eigen::DontAlignCols, ", ", ", ")) << NC << std::endl;
+        
+        relocate_state->setXYZ(best_pos.x(), best_pos.y(), grasp_state->getZ());
+        states.push_back(grasp_state);
+        states.push_back(relocate_state);
+        relocate_state->setX(best_pos.x()*0.7);
+        states.push_back(relocate_state);
+        return true;
+    }
+    else
+    {
+        // if the above method fails, just get a random state to drop the object
+
+        ROS_WARN("[PLANNER]: Failed to find a position to relocate, attempting to sample a random state!");
+
+        double x_mean = geom.pose.position.x*0.3;
+        double y_mean = geom.pose.position.y;
+        std::uniform_real_distribution<double> x_dist(x_mean-0.10, x_mean+0.10);
+        std::uniform_real_distribution<double> y_dist(y_mean-0.15, y_mean+0.15);
+        std::random_device rseed;
+        std::mt19937 rng(rseed());
+        Timer timer;
+        timer.start();
+
+        while (timer.elapsedMillis() <= 5000)
+        {
+            relocate_state->setXYZ(x_dist(rng), y_dist(rng), start->getZ());
+            if (state_checker_->isValid(relocate_state.get()))
+            {
+                found_state = true;
+                states.push_back(grasp_state);
+                states.push_back(relocate_state);
+                timer.reset();
+                break;
+            }
+        }
+
+        if (!found_state)
+        {
+            std::cout << RED << "[PLANNER]: Failed to plan grasp action!" << std::endl;
+            return false;
         }
     }
 
-    if (!found_state)
-    {
-        std::cout << RED << "[PLANNER]: Failed to plan grasp action!" << std::endl;
-    }
+    ROS_WARN("[PLANNER]: Successfully sampled a state, object will be dropped!");
 
-    return found_state;
+    return true;
 }
 
 bool Planner::getPushGraspAction(const util::CollisionGeometry& geom, ob::ScopedState<ob::SE3StateSpace>& state)
@@ -1161,10 +1315,10 @@ void Planner::executeAction(Planner::ActionType action)
             controller_.sendAction(split_traj);
 
             // final gripper state
-            // i = num_trajectories-2 --> first (or second) state in path after which arm should grasp object
-            // i = num_trajectories-1 --> final state in path after which arm should release object
-            if (i == num_trajectories-1) { controller_.openGripper(); }
-            else if (i == num_trajectories-2) { controller_.closeGripper(); }
+            // i = num_trajectories-2 --> final state in path after which arm should release object
+            // i = num_trajectories-3 --> first (or second) state in path after which arm should grasp object
+            if (i == num_trajectories-2) { controller_.openGripper(); }
+            else if (i == num_trajectories-3) { controller_.closeGripper(); }
         }
     }
     else
