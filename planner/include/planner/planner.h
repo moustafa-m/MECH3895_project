@@ -67,7 +67,6 @@ public:
     bool plan();
     void setStart(const Eigen::Vector3d& start, const Eigen::Quaterniond& orientation);
     void setGoal(const Eigen::Vector3d& goal, const Eigen::Quaterniond& orientation);
-    void setCollisionGeometries(const std::vector<util::CollisionGeometry>& collision_boxes);
     void setTargetGeometry(util::CollisionGeometry geom);
     void savePath();
     void clearMarkers();

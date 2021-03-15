@@ -265,12 +265,6 @@ void Planner::setGoal(const Eigen::Vector3d& goal, const Eigen::Quaterniond& ori
         << goal_state->rotation().w << "}" << std::endl;
 }
 
-void Planner::setCollisionGeometries(const std::vector<util::CollisionGeometry>& collision_boxes)
-{
-    collision_boxes_.clear();
-    collision_boxes_ = collision_boxes;
-}
-
 void Planner::setTargetGeometry(util::CollisionGeometry geom)
 {
     target_geom_ = geom;
