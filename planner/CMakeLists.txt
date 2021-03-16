@@ -31,6 +31,7 @@ find_package(catkin REQUIRED COMPONENTS
   actionlib
   gazebo_msgs
   sensor_msgs
+  nav_msgs
   trac_ik_lib
   gazebo_geometries_plugin
   gazebo_scene_randomiser_plugin
@@ -82,7 +83,7 @@ include_directories(
   ${fcl_INCLUDE_DIRS}
 )
 
-add_executable(planner_node src/node.cpp src/controller.cpp src/planner.cpp src/manipulator.cpp src/timer.cpp)
+add_executable(planner_node src/node.cpp src/controller.cpp src/planner.cpp src/manipulator.cpp src/timer.cpp src/util.cpp src/state_validity.cpp)
 add_dependencies(planner_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 target_link_libraries(planner_node
   ${catkin_LIBRARIES}

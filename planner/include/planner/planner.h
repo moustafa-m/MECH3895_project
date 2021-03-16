@@ -5,6 +5,7 @@
 #include <eigen3/Eigen/Geometry>
 #include <boost/filesystem.hpp>
 #include <visualization_msgs/Marker.h>
+#include <nav_msgs/OccupancyGrid.h>
 #include <trajectory_msgs/JointTrajectory.h>
 #include <gazebo_geometries_plugin/geometry.h>
 #include <gazebo_msgs/ModelStates.h>
@@ -43,7 +44,7 @@ public:
         GRASP
     };
 
-    typedef struct PlannerResult
+    struct PlannerResult
     {
         bool path_found = false;
         bool partial_solution = false;
@@ -57,7 +58,7 @@ public:
             path_found = partial_solution = grasp_success = false;
             num_actions = plan_time = execution_time = 0.0;
         }
-    } PlannerResult;
+    };
 
 public:
     Planner(ros::NodeHandle* nh);
@@ -66,7 +67,6 @@ public:
     bool plan();
     void setStart(const Eigen::Vector3d& start, const Eigen::Quaterniond& orientation);
     void setGoal(const Eigen::Vector3d& goal, const Eigen::Quaterniond& orientation);
-    void setCollisionGeometries(const std::vector<util::CollisionGeometry>& collision_boxes);
     void setTargetGeometry(util::CollisionGeometry geom);
     void savePath();
     void clearMarkers();
@@ -76,6 +76,7 @@ private:
     void initROS();
     bool generateTrajectory(trajectory_msgs::JointTrajectory& traj);
     void publishGoalMarker();
+    void publishGridMap();
     void publishMarkers();
     void modelStatesCallback(gazebo_msgs::ModelStatesConstPtr msg);
     void update();
@@ -94,6 +95,7 @@ private:
 
     ros::NodeHandle nh_;
     ros::Publisher marker_pub_;
+    ros::Publisher grid_pub_;
     ros::Subscriber models_sub_;
     ros::ServiceServer start_plan_srv_;
     ros::ServiceServer reset_arm_srv_;
@@ -110,6 +112,9 @@ private:
 
     PlannerResult result_;
     util::CollisionGeometry target_geom_;
+    util::CollisionGeometry surface_geom_;
+    std::string surface_parent_name_;
+    util::Grid2D surface_grid_;
     gazebo_msgs::ModelStatesConstPtr models_;
 
     std::vector<std::string> static_objs_;

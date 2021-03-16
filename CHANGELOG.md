@@ -2,6 +2,22 @@
 
 Noteable/major changes will be listed here
 
+## 15th March 2021
+
+### Added
+
+- discretisation of work surface into 2D grid.
+- publishing of nav_msgs::OccupancyGrid to visualise discretisation.
+- search method to evaluate grid cells to find relocation position for a grasped object.
+
+### Modified
+
+- surface name is now a ROS param that is set by the user when launching Gazebo.
+
+### Removed
+
+- setCollisionGeometries() method in Planner class. Functions was replaced with update(), should've removed it earlier...
+
 ## 10th March 2021
 
 ### Added

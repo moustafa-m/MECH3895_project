@@ -8,7 +8,9 @@
 - [x] Add execution time logging
 - [x] use ROS params for planner timeouts, name, IK solve type etc.
 - [x] Write up a complete README
-- [ ] Add search method for suitable locations to drop grasped objects
+- [x] Add search method for suitable locations to drop grasped objects
+  - [x] Surface discretisation
+  - [x] Surface search
 - [ ] Add media files
 - [x] Add number of actions logging
 - [x] Add some form of grasp pose generation

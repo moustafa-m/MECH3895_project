@@ -24,6 +24,8 @@ public:
 
     void run()
     {
+        this->initArm();
+        
         int i = 1;
         while (ros::ok())
         {
@@ -47,6 +49,7 @@ private:
         planning_client_ = nh_.serviceClient<planner::start_plan>("/start_plan");
         randomiser_client_ = nh_.serviceClient<gazebo_scene_randomiser_plugin::randomise>("/gazebo/randomise_scene");
         reset_arm_client_ = nh_.serviceClient<std_srvs::Empty>("/reset_arm");
+        init_arm_client_ = nh_.serviceClient<std_srvs::Empty>("/go_to_init");
 
         if (!(planning_client_.exists() && randomiser_client_.exists()))
         {
@@ -55,7 +58,7 @@ private:
         }
 
         ros::param::param<int>("~num_runs", num_runs_, 10);
-        ros::param::param<std::string>("~surface", surface_, "short_table_link_surface");
+        ros::param::param<std::string>("/gazebo/surface", surface_, "small_table_link_surface");
         ros::param::param<std::string>("/robot_name", robot_name_, "j2s7s300");
 
         if (num_runs_ <= 0)
@@ -67,7 +70,7 @@ private:
         
         auto time = std::time(nullptr);
         std::stringstream ss;
-        ss << ros::package::getPath("planner") + "/test/logs/" << std::put_time(std::localtime(&time), "%b %d %Y")  << "/";
+        ss << ros::package::getPath("planner") + "/test/logs/" << surface_  << "/";
         if (!boost::filesystem::exists(ss.str()))
         {
             if (!boost::filesystem::create_directories(ss.str()))
@@ -78,7 +81,7 @@ private:
             }
         }
 
-        ss << std::put_time(std::localtime(&time), "%X") << ".log";
+        ss << std::put_time(std::localtime(&time), "%b_%d_%Y_%X") << ".log";
 
         log_file_ = ss.str();
 
@@ -91,6 +94,12 @@ private:
     {
         std_srvs::Empty empty_req;
         reset_arm_client_.call(empty_req);
+    }
+
+    void initArm()
+    {
+        std_srvs::Empty empty_req;
+        init_arm_client_.call(empty_req);
     }
 
     void runPlannerAndLog()
@@ -135,6 +144,7 @@ private:
     ros::ServiceClient planning_client_;
     ros::ServiceClient randomiser_client_;
     ros::ServiceClient reset_arm_client_;
+    ros::ServiceClient init_arm_client_;
 
     int num_runs_;
     std::string surface_;
