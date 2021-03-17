@@ -1105,15 +1105,15 @@ bool Planner::getGraspAction(std::vector<ob::ScopedState<ob::SE3StateSpace>>& st
             ditto_state->setX(node.center.x());
             ditto_state->setY(node.center.y());
             
-            Eigen::Vector2d diff = node.center - target_pos;
+            Eigen::Vector2d target_diff = node.center - target_pos;
             
             // check some conditions before deciding if BFS will be performed on this node.
             // the distance conditions ensure the arm stays within a certain region relative
-            // to the target object. This makes it so that there is less likelihood of causing
-            // unwanted changes to the scene that affect the target.
+            // to the target object and the grasped object. This makes it so that there is
+            // less likelihood of causing unwanted changes to the scene that affect the target.
             if (state_checker_->isValid(ditto_state.get()) &&
-                std::abs(diff.y()) >= 0.15 &&
-                std::abs(target_pos.x()) - std::abs(node.center.x()) >= 0.05)
+                std::abs(target_diff.y()) >= 0.15 &&
+                std::abs(geom.pose.position.x) - std::abs(node.center.x()) >= 0)
             {
                 // ---> start BFS
                 // std::cout << "BFS for " << node.center << "\n\n";
