@@ -958,7 +958,7 @@ bool Planner::getPushAction(std::vector<ob::ScopedState<ob::SE3StateSpace>>& sta
 
     double clearance = 0.1 - std::abs(geom.pose.position.y - target_geom_.pose.position.y);
     // y coord of the object's corner
-    double geom_extreme_ycoord = geom.pose.position.y + direction*geom.dimension.y*0.5;
+    double geom_extreme_ycoord = geom.pose.position.y - direction*geom.dimension.y*0.5;
     double push_dist = clearance + std::abs(desired_y - geom_extreme_ycoord);
     push_dist -= 0.03; // subtract 3cm to account for the fingers making contact, not the center of the end-effector frame
 
