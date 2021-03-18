@@ -1315,8 +1315,9 @@ void Planner::executeAction(Planner::ActionType action)
             // final gripper state
             // i = num_trajectories-2 --> final state in path after which arm should release object
             // i = num_trajectories-3 --> first (or second) state in path after which arm should grasp object
-            if (i == num_trajectories-2) { controller_.openGripper(); }
-            else if (i == num_trajectories-3) { controller_.closeGripper(); }
+            // the sleep durations are to allow the grasp plugin to attach/detach the target objects
+            if (i == num_trajectories-2) { controller_.openGripper(); ros::Duration(1).sleep(); }
+            else if (i == num_trajectories-3) { controller_.closeGripper(); ros::Duration(1).sleep(); }
         }
     }
     else
@@ -1324,7 +1325,11 @@ void Planner::executeAction(Planner::ActionType action)
         controller_.sendAction(traj);
 
         // final gripper state
+        // gripper is opened after pushing actions because sometimes object can get stuck inside
+        // the gripper during the pushing operation, so this is done to release them
+        // consequently, this does mean that they might be dropped off on the ground
         if (action == ActionType::PUSH_GRASP) { controller_.closeGripper(); }
+        else { controller_.openGripper(); ros::Duration(1).sleep(); }
     }
 }
 
@@ -1335,6 +1340,8 @@ void Planner::resetArm()
     std::vector<Eigen::Quaterniond> goal_orientations;
     manipulator_.solveFK(start_positions, goal_orientations);
     manipulator_.solveFK(goal_positions, goal_orientations, manipulator_.getInitPose());
+
+    controller_.openGripper();
 
     Eigen::Vector3d diff = start_positions.back() - goal_positions.back();
     if (std::abs(diff.x()) < 5e-2 &&
@@ -1353,7 +1360,6 @@ void Planner::resetArm()
 
     this->setTargetGeometry(geom);
     this->update();
-    controller_.openGripper();
 
     state_checker_->setNonStaticCollisions(false);
 
