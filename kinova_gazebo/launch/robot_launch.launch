@@ -12,6 +12,7 @@
   <arg name="use_trajectory_controller" default="true"/>
   <arg name="is7dof" default="true"/>
   <arg name="surface" default="small_table_link_surface"/>
+  <arg name="finger_friction" default="false" />
 
   <!-- put relevant parameters up on the parameter server -->
   <rosparam command="load"  file="$(find kinova_gazebo)/params/gazebo_params.yaml" />
@@ -31,7 +32,7 @@
   <!-- Load the URDF into the ROS Parameter Server -->
   <param name="robot_description"
     command="$(find xacro)/xacro --inorder '$(find kinova_description)/urdf/$(arg kinova_robotType)_standalone.xacro'
-      robot:=$(arg kinova_robotType) is7dof:=$(arg is7dof)" />
+      robot:=$(arg kinova_robotType) is7dof:=$(arg is7dof) finger_friction:=$(arg finger_friction)" />
 
   <!-- Run a python script to the send a service call to gazebo_ros to spawn a URDF robot -->
   <!-- For the 6DOF -->
