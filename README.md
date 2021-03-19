@@ -13,7 +13,7 @@
     - [Gazebo](#gazebo)
     - [Planner](#planner)
   - [Third Party Packages](#third-party-packages)
-    - [gazebo_grasp_plugin](#gazebo_grasp_plugin)
+    - [gazebo_grasp_plugin and gazebo_version_helpers](#gazebo_grasp_plugin-and-gazebo_version_helpers)
     - [Kinova packages](#kinova-packages)
   - [Changes to Jaco2 Models](#changes-to-jaco2-models)
     - [Finger Tips For All Models](#finger-tips-for-all-models)
@@ -144,10 +144,10 @@ Replace ```number``` with the number of runs you want to do.
 ## Third Party Packages
 All third party licenses can be found in their respective folders in this repository and their original repositories linked below.
 
-### gazebo_grasp_plugin
+### gazebo_grasp_plugin and gazebo_version_helpers
 Cloned from [gazebo-pkgs](https://github.com/JenniferBuehler/gazebo-pkgs) repo by [Jennifer Buehler](https://github.com/JenniferBuehler). The master branch was cloned, commit baf0f033475c3a592efb0862079f3ff8392cadf6.  
 
-This package is used as a workaround to limitations in Gazebo for grasping operations (objects tend to slip/get pushed away when a grasp is attempted). Adding very high friction to the Kinova fingers is also a workaround, although objects may seem to "stick" to the fingers during interactions that are not necessarily grasps. Another change was done to the Kinova description files regarding the finger tips is explained in the next section.
+The grasp_plugin package is used as a workaround to limitations in Gazebo for grasping operations (objects tend to slip/get pushed away when a grasp is attempted). Adding very high friction to the Kinova fingers is also a workaround, although objects may seem to "stick" to the fingers during interactions that are not necessarily grasps. Another change was done to the Kinova description files regarding the finger tips is explained in the next section.
 
 ### Kinova packages
 The [kinova_control](kinova_control/), [kinova_description](kinova_description/), and [kinova_gazebo](kinova_gazebo) packages are from the official [kinova-ros](https://github.com/Kinovarobotics/kinova-ros/tree/master) package by [Kinova Robotics](https://github.com/Kinovarobotics). The master branch was cloned, commit 99ac039028855eb9c1000a9c51b9c1544d5ef446.
