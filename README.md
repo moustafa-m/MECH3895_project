@@ -106,7 +106,7 @@ A Gazebo and Rviz windows should popup.
 
 If desired, you can pass in a world argument to launch a different scene from the [worlds](kinova_gazebo/worlds) folder. The default is ```kinova_table```.
 ```
-$ roslaunch kinova_gazebo robot_launch.launch world:=kinova_cabinet surface=cabinet_link_middle_plate
+$ roslaunch kinova_gazebo robot_launch.launch world:=kinova_cabinet surface:=cabinet_link_middle_plate
 ```
 
 for more info on obtaining surface names from Gazebo, check the gazebo_scene_randomiser_plugin [README](gazebo_scene_randomiser_plugin/README.md).  
