@@ -2,6 +2,18 @@
 
 Noteable/major changes will be listed here
 
+## 19th March 2021
+
+### Added
+
+- added the gazebo_version_helpers package from the [gazebo-pkgs](https://github.com/JenniferBuehler/gazebo-pkgs) repo to resolve dependency for the grasp_plugin package. Initially was intended to be external dependency but moving it in the main repo would make it easier to keep everything in one place.
+
+## 17th March 2021
+
+### Added
+
+- data processing Cpp program and Bash scripts.
+
 ## 15th March 2021
 
 ### Added

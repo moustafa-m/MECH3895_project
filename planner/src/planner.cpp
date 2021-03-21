@@ -958,7 +958,7 @@ bool Planner::getPushAction(std::vector<ob::ScopedState<ob::SE3StateSpace>>& sta
 
     double clearance = 0.1 - std::abs(geom.pose.position.y - target_geom_.pose.position.y);
     // y coord of the object's corner
-    double geom_extreme_ycoord = geom.pose.position.y + direction*geom.dimension.y*0.5;
+    double geom_extreme_ycoord = geom.pose.position.y - direction*geom.dimension.y*0.5;
     double push_dist = clearance + std::abs(desired_y - geom_extreme_ycoord);
     push_dist -= 0.03; // subtract 3cm to account for the fingers making contact, not the center of the end-effector frame
 
@@ -1105,15 +1105,15 @@ bool Planner::getGraspAction(std::vector<ob::ScopedState<ob::SE3StateSpace>>& st
             ditto_state->setX(node.center.x());
             ditto_state->setY(node.center.y());
             
-            Eigen::Vector2d diff = node.center - target_pos;
+            Eigen::Vector2d target_diff = node.center - target_pos;
             
             // check some conditions before deciding if BFS will be performed on this node.
             // the distance conditions ensure the arm stays within a certain region relative
-            // to the target object. This makes it so that there is less likelihood of causing
-            // unwanted changes to the scene that affect the target.
+            // to the target object and the grasped object. This makes it so that there is
+            // less likelihood of causing unwanted changes to the scene that affect the target.
             if (state_checker_->isValid(ditto_state.get()) &&
-                std::abs(diff.y()) >= 0.15 &&
-                std::abs(target_pos.x()) - std::abs(node.center.x()) >= 0.05)
+                std::abs(target_diff.y()) >= 0.15 &&
+                std::abs(geom.pose.position.x) - std::abs(node.center.x()) >= 0)
             {
                 // ---> start BFS
                 // std::cout << "BFS for " << node.center << "\n\n";
@@ -1315,8 +1315,9 @@ void Planner::executeAction(Planner::ActionType action)
             // final gripper state
             // i = num_trajectories-2 --> final state in path after which arm should release object
             // i = num_trajectories-3 --> first (or second) state in path after which arm should grasp object
-            if (i == num_trajectories-2) { controller_.openGripper(); }
-            else if (i == num_trajectories-3) { controller_.closeGripper(); }
+            // the sleep durations are to allow the grasp plugin to attach/detach the target objects
+            if (i == num_trajectories-2) { controller_.openGripper(); ros::Duration(1).sleep(); }
+            else if (i == num_trajectories-3) { controller_.closeGripper(); ros::Duration(1).sleep(); }
         }
     }
     else
@@ -1324,7 +1325,11 @@ void Planner::executeAction(Planner::ActionType action)
         controller_.sendAction(traj);
 
         // final gripper state
+        // gripper is opened after pushing actions because sometimes object can get stuck inside
+        // the gripper during the pushing operation, so this is done to release them
+        // consequently, this does mean that they might be dropped off on the ground
         if (action == ActionType::PUSH_GRASP) { controller_.closeGripper(); }
+        else { controller_.openGripper(); ros::Duration(1).sleep(); }
     }
 }
 
@@ -1335,6 +1340,8 @@ void Planner::resetArm()
     std::vector<Eigen::Quaterniond> goal_orientations;
     manipulator_.solveFK(start_positions, goal_orientations);
     manipulator_.solveFK(goal_positions, goal_orientations, manipulator_.getInitPose());
+
+    controller_.openGripper();
 
     Eigen::Vector3d diff = start_positions.back() - goal_positions.back();
     if (std::abs(diff.x()) < 5e-2 &&
@@ -1353,7 +1360,6 @@ void Planner::resetArm()
 
     this->setTargetGeometry(geom);
     this->update();
-    controller_.openGripper();
 
     state_checker_->setNonStaticCollisions(false);
 

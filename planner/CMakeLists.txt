@@ -99,3 +99,9 @@ target_link_libraries(tester
   ${catkin_LIBRARIES}
   ${GAZEBO_LIBRARIES}
 )
+
+add_executable(data_processor test/data_processor.cpp)
+add_dependencies(data_processor ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(data_processor
+  ${catkin_LIBRARIES}
+)

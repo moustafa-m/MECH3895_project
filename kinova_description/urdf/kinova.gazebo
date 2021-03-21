@@ -2,10 +2,14 @@
 
 <root xmlns:xacro="http://www.ros.org/wiki/xacro">
 
+<xacro:arg name="finger_friction" default="false" />
+
 <xacro:include filename="$(find kinova_gazebo)/plugin/graspFix.urdf.xacro" />
 <xacro:gazebo_grasp_fix/>
 
-<xacro:include filename="$(find kinova_description)/urdf/kinova_finger_friction.xacro" />
+<xacro:if value="$(arg finger_friction)">
+  <xacro:include filename="$(find kinova_description)/urdf/kinova_finger_friction.xacro" />
+</xacro:if>
 
 <xacro:macro name="gazebo_config" params="robot_namespace">
 

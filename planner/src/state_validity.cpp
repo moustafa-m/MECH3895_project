@@ -79,7 +79,7 @@ bool StateChecker::checkIK(const ob::State* state) const
 }
 
 bool StateChecker::checkCollision(const ob::State* state) const
-   {
+{
     const ob::SE3StateSpace::StateType* state3D = state->as<ob::SE3StateSpace::StateType>();
     double x = state3D->getX(); double y = state3D->getY(); double z = state3D->getZ();
 
@@ -107,14 +107,14 @@ bool StateChecker::checkCollision(const ob::State* state) const
     util::CollisionGeometry effector = collision_boxes_->at(idx);
     std::shared_ptr<fcl::CollisionGeometry> effectorbox;
     effectorbox = std::shared_ptr<fcl::CollisionGeometry>(new fcl::Box(effector.dimension.x, effector.dimension.y, effector.dimension.z));
-        
+
     fcl::CollisionObject effectorobj(effectorbox);
     Eigen::Vector3d effector_translation = rotation.toRotationMatrix() * effector_translation_;
     fcl::Vec3f effector_xyz(x+effector_translation[0], y+effector_translation[1], z+effector_translation[2]); // set coordinates to be at centre of last link
-        
+
     Eigen::Quaterniond q = rotation * Eigen::AngleAxisd(-M_PI, Eigen::Vector3d::UnitX()) * Eigen::AngleAxisd(-M_PI_2, Eigen::Vector3d::UnitZ());
     fcl::Quaternion3f effector_quat(q.w(), q.x(), q.y(), q.z());
-        
+
     effectorobj.setTransform(effector_quat, effector_xyz);
 
     // ----> fingers
@@ -170,11 +170,11 @@ bool StateChecker::checkCollision(const ob::State* state) const
 
         bool is_static = std::any_of(static_objs_.begin(), static_objs_.end(), [this, i](const std::string& str)
             { return collision_boxes_->at(i).name.find(str) != std::string::npos; });
-            
+
         if ((!is_static && !non_static_collisions_) &&
             !(collision_boxes_->at(i).name.compare(target_name_) == 0 && target_collision_))
         { continue; }
-            
+
         std::shared_ptr<fcl::CollisionGeometry> box;
         box = std::shared_ptr<fcl::CollisionGeometry>(new fcl::Box(collision_boxes_->at(i).dimension.x, collision_boxes_->at(i).dimension.y, collision_boxes_->at(i).dimension.z));
 
@@ -194,7 +194,7 @@ bool StateChecker::checkCollision(const ob::State* state) const
         fcl::collide(&finger2obj, &obj, request, finger2_result);
         fcl::collide(&finger3obj, &obj, request, finger3_result);
 
-            if (result.isCollision() || finger1_result.isCollision() || finger2_result.isCollision() || finger3_result.isCollision())
+        if (result.isCollision() || finger1_result.isCollision() || finger2_result.isCollision() || finger3_result.isCollision())
         {
             return false;
         }

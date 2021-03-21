@@ -13,7 +13,7 @@
     - [Gazebo](#gazebo)
     - [Planner](#planner)
   - [Third Party Packages](#third-party-packages)
-    - [gazebo_grasp_plugin](#gazebo_grasp_plugin)
+    - [gazebo_grasp_plugin and gazebo_version_helpers](#gazebo_grasp_plugin-and-gazebo_version_helpers)
     - [Kinova packages](#kinova-packages)
   - [Changes to Jaco2 Models](#changes-to-jaco2-models)
     - [Finger Tips For All Models](#finger-tips-for-all-models)
@@ -89,18 +89,24 @@ Now build:
 $ cd .. && catkin_make && source devel/setup.bash
 ```
 
+If using the [Catkin Tools](https://catkin-tools.readthedocs.io/en/latest/) package:
+
+```
+$ catkin build planner_proj && source ../devel/setup.bash
+```
+
 ### Gazebo
 To launch Gazebo, use:
 
 ```
-$ roslaunch planner gazebo.launch
+$ roslaunch kinova_gazebo robot_launch.launch
 ```
 
 A Gazebo and Rviz windows should popup.
 
 If desired, you can pass in a world argument to launch a different scene from the [worlds](kinova_gazebo/worlds) folder. The default is ```kinova_table```.
 ```
-$ roslaunch planner gazebo.launch world:=kinova_cabinet surface=cabinet_link_middle_plate
+$ roslaunch kinova_gazebo robot_launch.launch world:=kinova_cabinet surface:=cabinet_link_middle_plate
 ```
 
 for more info on obtaining surface names from Gazebo, check the gazebo_scene_randomiser_plugin [README](gazebo_scene_randomiser_plugin/README.md).  
@@ -138,21 +144,26 @@ Replace ```number``` with the number of runs you want to do.
 ## Third Party Packages
 All third party licenses can be found in their respective folders in this repository and their original repositories linked below.
 
-### gazebo_grasp_plugin
+### gazebo_grasp_plugin and gazebo_version_helpers
 Cloned from [gazebo-pkgs](https://github.com/JenniferBuehler/gazebo-pkgs) repo by [Jennifer Buehler](https://github.com/JenniferBuehler). The master branch was cloned, commit baf0f033475c3a592efb0862079f3ff8392cadf6.  
 
-This package is used as a workaround to limitations in Gazebo for grasping operations (objects tend to slip/get pushed away when a grasp is attempted). Adding very high friction to the Kinova fingers is also a workaround. For this project, both the plugin and custom friction values are used. Another change was done to the Kinova description files regarding the finger tips, this is explained in the next section
+The grasp_plugin package is used as a workaround to limitations in Gazebo for grasping operations (objects tend to slip/get pushed away when a grasp is attempted). Adding very high friction to the Kinova fingers is also a workaround, although objects may seem to "stick" to the fingers during interactions that are not necessarily grasps. Another change was done to the Kinova description files regarding the finger tips is explained in the next section.
 
 ### Kinova packages
 The [kinova_control](kinova_control/), [kinova_description](kinova_description/), and [kinova_gazebo](kinova_gazebo) packages are from the official [kinova-ros](https://github.com/Kinovarobotics/kinova-ros/tree/master) package by [Kinova Robotics](https://github.com/Kinovarobotics). The master branch was cloned, commit 99ac039028855eb9c1000a9c51b9c1544d5ef446.
 
 ## Changes to Jaco2 Models
 ### Finger Tips For All Models
-The Kinova's finger tips in the description files have been changed to be a fixed joint and disabled in the controller configs.
-
-A [file](kinova_description/urdf/kinova_finger_friction.xacro) was made to add custom friction values to both parts of the finger sets as well.
+The Kinova's finger tips in the description files have been changed to be a fixed joint and disabled in the controller configs.  
 
 The joints would sporadically move when a grasp is attempted and often resulted in the grasp plugin not working correctly and the object being pushed away regardless of set friction values.
+
+A [file](kinova_description/urdf/kinova_finger_friction.xacro) was made to add custom friction values to both parts of the finger sets as well.  
+
+To use these friction values, launch Gazebo using the following:
+```
+$ roslaunch kinova_gazebo robot_launch.launch world:=<world> surface:=<surface> finger_friction:=true
+```
 
 ### 6-DoF Spherical Wrist Jaco
 The P gain for joint 6 on these models was reduced to 200 from 500. This is due to the joint shaking uncontrollably sometimes.
