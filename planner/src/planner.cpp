@@ -1241,10 +1241,13 @@ bool Planner::getPushGraspAction(const util::CollisionGeometry& geom, ob::Scoped
     bool obj_behind = false;
     for (int i = 0; i < collision_boxes_.size(); i++)
     {
-        if (collision_boxes_[i].name == geom.name) continue;
+        if (collision_boxes_[i].name == geom.name ||
+            collision_boxes_[i].name.find(manipulator_.getName()) != std::string::npos)
+        { continue; }
         
         if (std::abs(collision_boxes_[i].pose.position.y - pos.y()) < 0.03 &&
-            std::abs(collision_boxes_[i].pose.position.x) - std::abs(pos.x()) <= 0.1)
+            std::abs(collision_boxes_[i].pose.position.x) - std::abs(pos.x()) <= 0.1 &&
+            std::abs(collision_boxes_[i].pose.position.x) > std::abs(pos.x()))
         {
             obj_behind = true;
             break;
