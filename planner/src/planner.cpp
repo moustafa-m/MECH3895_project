@@ -1269,6 +1269,8 @@ bool Planner::getPushGraspAction(const util::CollisionGeometry& geom, ob::Scoped
     state->setY(pos.y());
     state->setZ(pos.z());
 
+    state_checker_->setTargetCollision(false);
+
     bool valid = state_checker_->isValid(state.get());
     if (!valid)
     {
