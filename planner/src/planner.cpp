@@ -840,7 +840,6 @@ bool Planner::isObjectBlocked(std::vector<util::CollisionGeometry>& objs)
 Planner::ActionType Planner::planInClutter(const std::vector<util::CollisionGeometry>& objs,
     std::vector<ob::ScopedState<ob::SE3StateSpace>>& states)
 {
-    state_checker_->setIKCheck(false);
     ob::ScopedState<ob::SE3StateSpace> state(space_);
     state = pdef_->getStartState(0);
 
