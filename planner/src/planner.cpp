@@ -568,7 +568,7 @@ void Planner::publishMarkers()
         marker.ns = "states";
         marker.header.frame_id = manipulator_.getName() + "_link_base";
         marker.header.stamp = ros::Time::now();
-        marker.color.a = 1.0; marker.color.g = 1.0; marker.color.r = marker.color.g = 0;
+        marker.color.a = 1.0; marker.color.g = marker.color.r = marker.color.b = 0;
         marker.type = visualization_msgs::Marker::SPHERE;
         marker.action = visualization_msgs::Marker::ADD;
         marker.scale.x = marker.scale.y = marker.scale.z = 0.02;
