@@ -1254,6 +1254,8 @@ bool Planner::getPushGraspAction(const util::CollisionGeometry& geom, ob::Scoped
         }
     }
 
+    state_checker_->setTargetCollision(false);
+
     // the final object push is not performed if there is an object behind the goal
     double desired_x;
     if (!obj_behind)
@@ -1264,6 +1266,7 @@ bool Planner::getPushGraspAction(const util::CollisionGeometry& geom, ob::Scoped
     }
     else
     {
+        state_checker_->setTargetCollision(true);
         desired_x = pos.x();
     }
 
@@ -1271,11 +1274,10 @@ bool Planner::getPushGraspAction(const util::CollisionGeometry& geom, ob::Scoped
     state->setY(pos.y());
     state->setZ(pos.z());
 
-    state_checker_->setTargetCollision(false);
-
     bool valid = state_checker_->isValid(state.get());
     if (!valid)
     {
+        state_checker_->setTargetCollision(true);
         state->setX(pos.x());
 
         // recheck state validity
