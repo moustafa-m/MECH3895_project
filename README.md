@@ -32,6 +32,14 @@ Development was done using ROS Melodic on Ubuntu 18.04.
 - Gazebo
 - TRAC_IK
 
+**NOTE:** Other dependency ROS packages should already be available through a normal desktop install, but you may encounter a missing dependency error for the effort-joint-controller package. If so, then install it manually using:
+
+```
+$ sudo apt-get install ros-<distro>-effort-controllers
+```
+
+Replace ```<distro>``` with the ROS distro that is installed.
+
 ### Optional
 These are only for plotting the solution paths if needed.
 
@@ -53,6 +61,9 @@ There are two parameters files, one for [Gazebo](kinova_gazebo/params/gazebo_par
 - ```planner/timeout``` - timeout duration for the planner.
 - ```planner/path_states``` - number of states to be interpolated in generated paths.
 - ```planner/save_path``` - bool to trigger saving of solution paths in [paths directory](planner/paths).
+- ```planner/propagate_push``` - bool to enable/disable validation of push actions by propagating arm and object states.
+- ```planner/use_grasping``` - bool to enable/disable grasping actions.
+- ```planner/fix_grasp_pose``` - bool to enable/disable changing of grasp orientation when needed.
 - ```kinematics_solver/type``` - solve type for the TRAC_IK solver.
 - ```kinematics_solver/timeout``` - solver timeout duration.
 
@@ -66,7 +77,10 @@ When planning in clutter, the arrows have different colour due to the path being
 
 Additionally, the goal object is displayed in blue, and the final goal state for the path(s) is displayed with a black point.
 
-**NOTE:** The markers will not appear again if unchecked in Rviz, this is because they are published once per plan.
+**NOTE:** The markers will not appear again if unchecked in Rviz, this is because they are published once per plan.  
+
+An example is shown below.  
+![rviz_gazebo_img](imgs/vis.png)
 
 ### Gazebo Geometries Plugin
 This is a world plugin that was made to obtain collision geometries of all the objects. The geometries are all obtained as box shapes even if the object itself is not a box, this is to simplify the collision detection process. The geometries are visualised in Rviz by this plugin.
@@ -160,9 +174,9 @@ The joints would sporadically move when a grasp is attempted and often resulted 
 
 A [file](kinova_description/urdf/kinova_finger_friction.xacro) was made to add custom friction values to both parts of the finger sets as well.  
 
-To use these friction values, launch Gazebo using the following:
+To use these friction values, launch Gazebo with the ```finger_friction``` argument as shown below:
 ```
-$ roslaunch kinova_gazebo robot_launch.launch world:=<world> surface:=<surface> finger_friction:=true
+$ roslaunch kinova_gazebo robot_launch.launch finger_friction:=true
 ```
 
 ### 6-DoF Spherical Wrist Jaco

@@ -17,9 +17,9 @@ As an example:
 
 ## Note on Kinova OOBBs
 
-This package was developed for work on a project involving the Kinova Jaco2 manipulators, hence, support for OOBBs for those arms was hard coded in using collision link dimensions for those arms due to the URDFs using mesh shape types.
+This package was developed for work on a project involving the Kinova Jaco2 manipulators, hence, support for OOBBs for those arms was hard coded in using collision link dimensions for those arms due to the URDFs using mesh shape types. The robot name is obtained from a ROS parameter on ```/robot_name```.
 
-The package will still work as normal without the need to spawn the arms in Gazebo.
+The package will still work as normal without the need to spawn the arms in Gazebo, however the robot's model will have the collision boxes shown. Set the ```/robot_name``` if this is not desirable. The next section explains how to disable the visualisation of the robot specific collision boxes.
 
 ## Rviz Visualisation
 
@@ -30,6 +30,10 @@ There is a parameter, ```/gazebo/static_objs```, that can be set to visualise st
 Another parameter, ```/gazebo/pub_arm_geom```, can be set to visualise the Kinova collision boxes on the same topic as the other geometries.
 
 These parameters are present in the [gazebo_params](../kinova_gazebo/params/gazebo_params.yaml) file which is in the [kinova_gazebo](../kinova_gazebo) folder.
+
+All Marker poses are published relative to the ```world``` frame.
+
+![rviz_img](img/geom_vis.png)
 
 ## The Geometry Service
 
