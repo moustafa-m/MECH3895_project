@@ -375,6 +375,9 @@ void Planner::initROS()
     ros::param::param<int>("~planner/timeout", timeout_, 60);
     ros::param::param<int>("~planner/path_states", path_states_, 10);
     ros::param::param<bool>("~planner/save_path", save_path_, false);
+    ros::param::param<bool>("~planner/propagate_push", propagate_push_, true);
+    ros::param::param<bool>("~planner/use_grasping", use_grasping_, true);
+    ros::param::param<bool>("~planner/fix_grasp_pose", fix_grasp_pose_, true);
 
     std::size_t pos = surface_geom_.name.find("link_");
     surface_parent_name_ = surface_geom_.name.substr(0, pos);
@@ -399,6 +402,9 @@ void Planner::initROS()
     ROS_INFO_STREAM(BLUE << "timeout\t\t: " << timeout_);
     ROS_INFO_STREAM(BLUE << "path_states\t: " << path_states_);
     ROS_INFO_STREAM(BLUE << "save_path\t: " << std::boolalpha << save_path_);
+    ROS_INFO_STREAM(BLUE << "propagate_push\t: " << std::boolalpha << propagate_push_);
+    ROS_INFO_STREAM(BLUE << "use_grasping\t: " << std::boolalpha << use_grasping_);
+    ROS_INFO_STREAM(BLUE << "fix_grasp_pose\t: " << std::boolalpha << fix_grasp_pose_);
     
     ROS_INFO("%s*****************************", BLUE);
 
@@ -489,6 +495,9 @@ void Planner::publishGoalMarker()
     {
         marker.id = 0;
         marker.scale = target_geom_.dimension;
+        marker.scale.x *= 1.01;
+        marker.scale.y *= 1.01;
+        marker.scale.z *= 1.01;
         marker.pose = target_geom_.pose;
         marker.color.b = marker.color.a = 1.0;
         marker.color.r = marker.color.g = 0.0;
@@ -723,7 +732,7 @@ bool Planner::verifyAndCorrectGraspPose(ob::ScopedState<ob::SE3StateSpace>& stat
     state_checker_->setNonStaticCollisions(false);
     state_checker_->setTargetCollision(true);
 
-    if (state_checker_->isValid(state.get())) return true;
+    if (state_checker_->isValid(state.get()) || !fix_grasp_pose_) return true;
 
     ROS_WARN("[PLANNER]: Grasp pose invalid, attempting to obtain a new one!");
 
@@ -871,11 +880,13 @@ Planner::ActionType Planner::planInClutter(const std::vector<util::CollisionGeom
         {
             return ActionType::PUSH;
         }
-        else
+        else if (use_grasping_)
         {
             success = this->getGraspAction(states, objs.front());
             return (success) ? ActionType::GRASP : ActionType::NONE;
         }
+        
+        return ActionType::NONE;
     }
     else
     {
@@ -889,7 +900,7 @@ Planner::ActionType Planner::planInClutter(const std::vector<util::CollisionGeom
 bool Planner::getPushAction(std::vector<ob::ScopedState<ob::SE3StateSpace>>& states, const std::vector<util::CollisionGeometry>& objs,
     const util::CollisionGeometry& geom)
 {
-    if (std::abs(goal_pos_.x()) - std::abs(geom.pose.position.x) <= 0.07)
+    if (std::abs(goal_pos_.x()) - std::abs(geom.pose.position.x) <= 0.07 && use_grasping_)
     {
         std::cout << RED << "[PLANNER]: object to be pushed is too close to target!" << std::endl;
         return false;
@@ -964,41 +975,44 @@ bool Planner::getPushAction(std::vector<ob::ScopedState<ob::SE3StateSpace>>& sta
     // push action
     push_state->setY(desired_y + direction*(push_dist));
 
-    // propagate the arm and object state along the path and check if is valid
-    for (int i = 1; i <= 10; i++)
+    if (propagate_push_)
     {
-        // object
-        double geom_y_pos = new_geom.pose.position.y + direction * (clearance*i/10);
-
-        for (int j = 0; j < collision_boxes_.size(); j++)
+        // propagate the arm and object state along the path and check if is valid
+        for (int i = 1; i <= 10; i++)
         {
-            bool is_static = std::any_of(static_objs_.begin(), static_objs_.end(), [this, j](const std::string& str)
-                { return collision_boxes_[j].name.find(str) != std::string::npos; });
-            if (!is_static) continue;
+            // object
+            double geom_y_pos = new_geom.pose.position.y + direction * (clearance*i/10);
 
-            double max_y, min_y;
-            min_y = geom_y_pos - (new_geom.dimension.y*0.5);
-            max_y = geom_y_pos + (new_geom.dimension.y*0.5);
-
-            bool collide = (new_geom.min.x < collision_boxes_[j].max.x) && (new_geom.max.x > collision_boxes_[j].min.x) &&
-                (min_y < collision_boxes_[j].max.y) && (max_y > collision_boxes_[j].min.y) &&
-                (new_geom.min.z + 0.03 < collision_boxes_[j].max.z) && (new_geom.max.z - 0.03 > collision_boxes_[j].min.z);
-            if (collide)
+            for (int j = 0; j < collision_boxes_.size(); j++)
             {
-                std::cout << RED << "[PLANNER]: object collides with " << collision_boxes_[j].name << " if pushed!"
-                    << std::endl;
+                bool is_static = std::any_of(static_objs_.begin(), static_objs_.end(), [this, j](const std::string& str)
+                    { return collision_boxes_[j].name.find(str) != std::string::npos; });
+                if (!is_static) continue;
+
+                double max_y, min_y;
+                min_y = geom_y_pos - (new_geom.dimension.y*0.5);
+                max_y = geom_y_pos + (new_geom.dimension.y*0.5);
+
+                bool collide = (new_geom.min.x < collision_boxes_[j].max.x) && (new_geom.max.x > collision_boxes_[j].min.x) &&
+                    (min_y < collision_boxes_[j].max.y) && (max_y > collision_boxes_[j].min.y) &&
+                    (new_geom.min.z + 0.03 < collision_boxes_[j].max.z) && (new_geom.max.z - 0.03 > collision_boxes_[j].min.z);
+                if (collide)
+                {
+                    std::cout << RED << "[PLANNER]: object collides with " << collision_boxes_[j].name << " if pushed!"
+                        << std::endl;
+                    return false;
+                }
+            }
+
+            // arm
+            ob::ScopedState<ob::SE3StateSpace> state(space_);
+            state = push_state;
+            state->setY(desired_y + direction * (push_dist*i/10));
+            if (!state_checker_->isValid(state.get()))
+            {
+                std::cout << RED << "[PLANNER]: Push action not possible!" << std::endl;
                 return false;
             }
-        }
-
-        // arm
-        ob::ScopedState<ob::SE3StateSpace> state(space_);
-        state = push_state;
-        state->setY(desired_y + direction * (push_dist*i/10));
-        if (!state_checker_->isValid(state.get()))
-        {
-            std::cout << RED << "[PLANNER]: Push action not possible!" << std::endl;
-            return false;
         }
     }
 
@@ -1053,7 +1067,7 @@ bool Planner::getGraspAction(std::vector<ob::ScopedState<ob::SE3StateSpace>>& st
         int num_close_objects = 0;
         double least_dist = std::numeric_limits<double>::infinity();
         for (int i = 0; i < collision_boxes_.size(); i++)
-        {   
+        {
             if (surface_geom_ == collision_boxes_[i] || geom == collision_boxes_[i]) { continue; }
 
             Eigen::Vector2d obj_pos(collision_boxes_[i].pose.position.x,
@@ -1090,7 +1104,7 @@ bool Planner::getGraspAction(std::vector<ob::ScopedState<ob::SE3StateSpace>>& st
     
     bool found_state = false;
     // <--- variables
-    
+
     // This performs a limited BFS on all the grid nodes to find a node that has the highest value for f(x)
     // ---> start search
     for (int i = 0; i < surface_grid_.width; i++)

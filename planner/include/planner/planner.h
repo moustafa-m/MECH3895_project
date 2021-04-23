@@ -106,6 +106,9 @@ private:
     int timeout_;
     int path_states_;
     std::string planner_name_;
+    bool propagate_push_;
+    bool use_grasping_;
+    bool fix_grasp_pose_;
 
     Manipulator manipulator_;
     Controller controller_;
