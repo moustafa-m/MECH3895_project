@@ -66,7 +66,7 @@ void Controller::closeGripper()
 
     msg.joint_names = manipulator_->getFingerNames();
     msg.points[0].positions.resize(3);
-    msg.points[0].positions = {0.95, 0.95, 0.95};
+    msg.points[0].positions = {1.0, 1.0, 1.0};
     msg.points[0].time_from_start = ros::Duration(2);
 
     control_msgs::FollowJointTrajectoryGoal joint_goal, gripper_goal;
