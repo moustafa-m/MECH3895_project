@@ -2,6 +2,18 @@
 
 Noteable/major changes will be listed here
 
+## 23rd April 2021
+
+### Added
+
+- params to enable/disable certain planner functionality.
+
+## 10th April 2021
+
+### Fixed
+
+- bug that caused the final target grasp action to not push the target out of clutter.
+
 ## 19th March 2021
 
 ### Added

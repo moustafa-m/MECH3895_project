@@ -11,7 +11,7 @@
 - [x] Add search method for suitable locations to drop grasped objects
   - [x] Surface discretisation
   - [x] Surface search
-- [ ] Add media files
+- [x] Add media files
 - [x] Add number of actions logging
 - [x] Add some form of grasp pose generation
 - [x] Add script to randomise Gazebo environment and execute the planner

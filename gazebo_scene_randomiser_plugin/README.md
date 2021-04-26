@@ -22,6 +22,7 @@ As an example:
 - The object areas are calculated using their shapes **if** they have one collision link named ```collision``` and are box or cylinder shapes, otherwise an Axis-Aligned Bounding Box is used.
 - Surface parent models must use ```_link_``` to indicate child links.
 - Make the surface has its z-axis aligned with the world z-axis and has the same direction. The surface yaw can be changed, but roll and pitch must be zero.
+- The plugin was only tested with small objects. Larger objects may not be correctly placed on surfaces, especially surfaces with inner walls.
 
 ## The Randomise Service
 ### Input
