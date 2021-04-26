@@ -90,9 +90,9 @@ The plugin attempts to get Object Oriented Bounding Boxes (OOBB), if it is unabl
 Check the [plugin folder](gazebo_geometries_plugin/) for more information on its functionality.
 
 ## Running a Demo
-To run a demo, first clone the repo into a catkin workspace, make sure your terminal is in the src directory:
 
 ### Building
+To run a demo, first clone the repo into a catkin workspace, make sure your terminal is in the src directory:
 ```
 $ git clone https://github.com/moustafa-m/clutter_planning.git
 ```
@@ -154,6 +154,8 @@ $ roslaunch planner tester.launch num_runs:=number
 ```
 
 Replace ```number``` with the number of runs you want to do.
+
+**NOTE:** There is an issue that occurs when the automated tester resets the joint configuration of the Kinova. There is currently no handling of errors from the joint trajectory controller. So, if the arm collides with an object that blocks its movement, the controller exxits with an error while the Kinova is still in collision. This causes the tester to think that the Kinova is back at the desired configuration and then start a planning request. This will cause the planner to immediately return a failure most of the time and hence the runs are invalidated.
 
 ## Third Party Packages
 All third party licenses can be found in their respective folders in this repository and their original repositories linked below.
